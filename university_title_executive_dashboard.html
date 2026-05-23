@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>University Title — Executive Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500&family=Inter+Tight:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<style>
+  :root{
+    --bg:#f7f7f5;
+    --panel:#ffffff;
+    --panel-2:#fafafa;
+    --line:#ececec;
+    --line-2:#d8d8d4;
+    --ink:#1a1a1a;
+    --ink-dim:#666666;
+    --ink-mute:#888888;
+    --accent:#0f4c81;        /* University blue — deeper, collegiate */
+    --accent-2:#5b8cb8;
+    --green:#1D9E75;
+    --red:#A32D2D;
+    --red-soft:#E24B4A;
+    --blue:#0f4c81;
+    --purple:#534AB7;
+    --amber:#BA7517;
+    --gold:#b78b3b;          /* University gold accent */
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--bg);color:var(--ink);font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;line-height:1.5}
+  body{padding:28px 24px 48px;max-width:1280px;margin:0 auto;font-family:'Inter Tight',sans-serif}
+
+  .topbar{display:flex;align-items:flex-end;justify-content:space-between;padding-bottom:20px;border-bottom:1px solid var(--line);margin-bottom:24px;flex-wrap:wrap;gap:12px}
+  .brand{display:flex;flex-direction:column;gap:4px}
+  .brand .crest{display:flex;align-items:center;gap:12px}
+  .seal{width:42px;height:42px;border:1.5px solid var(--accent);border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--accent);font-family:'Fraunces',serif;font-size:22px;font-weight:500;background:#fff;font-style:italic;letter-spacing:-0.02em}
+  .brand h1{font-family:'Fraunces',serif;font-weight:400;font-size:28px;letter-spacing:-0.5px;color:var(--ink);margin:0;line-height:1.1}
+  .brand h1 em{font-style:italic;color:var(--ink-dim);font-weight:300;margin-left:4px}
+  .brand .sub{font-size:12px;color:var(--ink-dim);font-weight:400;padding-left:54px;margin-top:2px;letter-spacing:0.04em;text-transform:uppercase;font-family:'JetBrains Mono',monospace}
+  .meta{text-align:right;font-size:13px;color:var(--ink-dim);line-height:1.6}
+  .meta .pulse{display:inline-flex;align-items:center;gap:6px;color:var(--green);font-weight:500}
+  .pulse::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 0 rgba(29,158,117,0.4);animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(29,158,117,0.4)}70%{box-shadow:0 0 0 8px rgba(29,158,117,0)}100%{box-shadow:0 0 0 0 rgba(29,158,117,0)}}
+
+  .section{margin-bottom:28px}
+  .section-head{display:flex;align-items:baseline;gap:14px;margin-bottom:14px}
+  .section-head .num{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent);letter-spacing:0.1em;font-weight:600;text-transform:uppercase}
+  .section-head h2{font-family:'Fraunces',serif;font-weight:400;font-size:20px;color:var(--ink);letter-spacing:-0.3px;font-style:italic}
+  .section-head .rule{flex:1;height:1px;background:var(--line)}
+  .section-head .note{font-size:11px;color:var(--ink-mute);letter-spacing:0.06em;text-transform:uppercase;font-family:'JetBrains Mono',monospace}
+
+  .kpi-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+  .kpi{background:var(--panel);padding:16px 18px;position:relative;min-height:110px;display:flex;flex-direction:column;justify-content:space-between;border:1px solid var(--line);border-radius:10px}
+  .kpi .label{font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--ink-dim);font-weight:500;font-family:'JetBrains Mono',monospace}
+  .kpi .value{font-family:'Fraunces',serif;font-size:32px;font-weight:400;letter-spacing:-0.5px;color:var(--ink);line-height:1.1;font-variant-numeric:tabular-nums;margin-top:6px}
+  .kpi .value .unit{font-size:18px;color:var(--ink-mute);margin-left:4px;font-weight:400}
+  .kpi .foot{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--ink-mute);margin-top:8px}
+  .kpi .delta{font-weight:500}
+  .kpi .delta.up{color:var(--green)}
+  .kpi .delta.down{color:var(--red)}
+  .kpi .delta.warn{color:var(--amber)}
+
+  .grid-12{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}
+  .span-12{grid-column:span 12}
+  .span-8{grid-column:span 8}
+  .span-7{grid-column:span 7}
+  .span-6{grid-column:span 6}
+  .span-5{grid-column:span 5}
+  .span-4{grid-column:span 4}
+  .span-3{grid-column:span 3}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 20px;position:relative}
+  .card .ttl{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+  .card .ttl h3{font-family:'Fraunces',serif;font-size:17px;font-weight:500;color:var(--ink);letter-spacing:-0.2px}
+  .card .ttl h3 em{font-style:italic;color:var(--ink-mute);font-weight:400;margin-left:6px;font-size:14px}
+  .card .ttl .tag{font-size:10px;color:var(--ink-mute);letter-spacing:0.08em;text-transform:uppercase;font-family:'JetBrains Mono',monospace}
+
+  .map-wrap{position:relative;width:100%;aspect-ratio:16/9;background:transparent}
+  .legend{display:flex;align-items:center;gap:10px;font-size:11px;color:var(--ink-dim);margin-top:8px;font-family:'JetBrains Mono',monospace}
+  .legend .scale{display:flex;height:8px;width:120px;border-radius:2px;overflow:hidden}
+  .legend .scale span{flex:1;height:100%}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;font-weight:500;font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:#555;padding:9px 10px;background:#fafafa;border-bottom:1px solid var(--line);font-family:'JetBrains Mono',monospace}
+  td{padding:9px 10px;border-bottom:1px solid #f0f0f0;color:var(--ink)}
+  tr:last-child td{border-bottom:none}
+  td.num{text-align:right;font-variant-numeric:tabular-nums;font-size:13px;font-family:'JetBrains Mono',monospace}
+  td.state-cell{font-weight:600;color:var(--accent);letter-spacing:0.04em;font-family:'JetBrains Mono',monospace}
+  td.agency-cell{font-size:12.5px;line-height:1.3}
+  .bar-cell{position:relative}
+  .bar-cell .bar{position:absolute;left:10px;bottom:4px;height:2px;background:var(--accent);opacity:0.4;border-radius:1px}
+
+  .chips{display:flex;flex-direction:column;gap:12px}
+  .chip{display:flex;align-items:center;gap:12px}
+  .chip .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+  .chip .name{flex:1;font-size:13px;color:var(--ink)}
+  .chip .count{font-size:11px;color:var(--ink-mute);font-variant-numeric:tabular-nums;font-family:'JetBrains Mono',monospace}
+  .chip-bar{flex:2;height:6px;background:#f0f0f0;border-radius:3px;overflow:hidden;position:relative}
+  .chip-bar .fill{height:100%;border-radius:3px}
+
+  .srcs{display:flex;flex-direction:column;gap:0}
+  .src{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f5f5f3;gap:10px}
+  .src:last-child{border-bottom:none}
+  .src .nm{font-size:12.5px;color:var(--ink);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .src .ct{font-size:12px;color:var(--accent);font-weight:600;font-variant-numeric:tabular-nums;font-family:'JetBrains Mono',monospace}
+
+  .pressure{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .p-cell{background:#fafafa;border:1px solid var(--line);border-radius:8px;padding:14px 10px;text-align:center}
+  .p-cell .v{font-family:'Fraunces',serif;font-size:26px;color:var(--ink);font-weight:500;line-height:1;font-variant-numeric:tabular-nums}
+  .p-cell .l{font-size:10px;color:var(--ink-dim);letter-spacing:0.06em;text-transform:uppercase;margin-top:8px;font-weight:500;font-family:'JetBrains Mono',monospace}
+  .p-cell.alert{background:#FCEBEB;border-color:#F7C1C1}
+  .p-cell.alert .v{color:var(--red)}
+  .p-cell.warn{background:#FAEEDA;border-color:#FAC775}
+  .p-cell.warn .v{color:var(--amber)}
+  .p-cell.ok{background:#EAF3DE;border-color:#C0DD97}
+  .p-cell.ok .v{color:#3B6D11}
+
+  .foot-strip{margin-top:32px;padding-top:18px;border-top:1px solid var(--line);display:flex;justify-content:space-between;font-size:10px;color:var(--ink-mute);letter-spacing:0.08em;text-transform:uppercase;flex-wrap:wrap;gap:8px;font-family:'JetBrains Mono',monospace}
+
+  .tip{position:absolute;background:#fff;border:1px solid var(--accent);box-shadow:0 4px 12px rgba(0,0,0,0.08);padding:8px 12px;border-radius:6px;font-size:12px;color:var(--ink);pointer-events:none;opacity:0;transition:opacity 0.15s;z-index:100;white-space:nowrap}
+  .tip strong{color:var(--accent);font-size:13px;font-weight:600;display:block;margin-bottom:2px}
+
+  .filter-row{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+  .filt{background:#fff;border:1px solid var(--line-2);color:var(--ink-dim);padding:6px 11px;font-size:10px;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;border-radius:6px;transition:all 0.15s;font-weight:500;font-family:'JetBrains Mono',monospace}
+  .filt:hover{border-color:var(--accent);color:var(--accent)}
+  .filt.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .filt .ct{margin-left:6px;opacity:0.7;font-variant-numeric:tabular-nums}
+
+  .agg-bar{background:#fafafa;border:1px solid var(--line);padding:14px 16px;margin-bottom:16px;border-radius:8px}
+  .agg-row{display:grid;grid-template-columns:160px 1fr 90px;gap:12px;align-items:center;font-size:12px;padding:5px 0}
+  .agg-lbl{color:var(--ink-dim);font-size:11.5px}
+  .agg-track{height:6px;background:#ececec;position:relative;border-radius:3px;overflow:hidden}
+  .agg-fill{position:absolute;left:0;top:0;height:100%;border-radius:3px}
+  .agg-val{font-size:11px;color:var(--ink);text-align:right;font-variant-numeric:tabular-nums;font-family:'JetBrains Mono',monospace}
+  .agg-val .muted{color:var(--ink-mute)}
+
+  .matrix-head{display:grid;gap:4px;padding:9px 8px;font-size:9px;letter-spacing:0.08em;color:var(--ink-dim);text-transform:uppercase;font-weight:500;border-bottom:1px solid var(--line);border-top:1px solid var(--line);background:#fafafa;border-radius:6px 6px 0 0;font-family:'JetBrains Mono',monospace}
+  .matrix-head.pc-head{grid-template-columns:130px 90px repeat(4,1fr) 60px}
+  .matrix-head.pr-head{grid-template-columns:130px 90px repeat(5,1fr) 60px}
+  .matrix-head > div{text-align:center}
+  .matrix-head > div:first-child{text-align:left}
+  .matrix-head > div:last-child{text-align:right}
+
+  .matrix{max-height:380px;overflow-y:auto;padding-right:4px}
+  .matrix-row{display:grid;gap:4px;padding:6px 8px;border-bottom:1px solid #f5f5f3;align-items:center;font-size:11.5px;transition:background 0.1s}
+  .matrix-row.pc-row{grid-template-columns:130px 90px repeat(4,1fr) 60px}
+  .matrix-row.pr-row{grid-template-columns:130px 90px repeat(5,1fr) 60px}
+  .matrix-row:hover{background:#f7faff}
+  .matrix-row.hidden{display:none}
+  .mx-ord{font-size:11px;color:var(--ink);display:flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums;font-family:'JetBrains Mono',monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mx-ord .mx-st{color:var(--accent);font-weight:600;font-size:10px;letter-spacing:0.04em;flex-shrink:0}
+  .mx-closer{font-size:10.5px;color:var(--ink-dim);text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mx-closer.unassigned{color:var(--red);font-style:italic}
+  .mx-cell{display:flex;align-items:center;justify-content:center;padding:3px;border-radius:4px;cursor:default;position:relative}
+  .mx-cell.done{background:#E1F5EE;border:1px solid #9FE1CB}
+  .mx-cell.due{background:#FAEEDA;border:1px solid #F0C97A}
+  .mx-cell.na{background:#f4f4f4;border:1px solid #e8e8e8}
+  .mx-cell.blank{background:#fff;border:1px dashed #d8d8d4}
+  .mx-cell .icon{font-size:11px;line-height:1;font-weight:600}
+  .mx-cell.done .icon{color:#0F6E56}
+  .mx-cell.due .icon{color:#8a5510}
+  .mx-cell.na .icon{color:#aaa}
+  .mx-cell.blank .icon{color:#bbb}
+  .mx-close{font-size:10px;text-align:right;font-variant-numeric:tabular-nums;font-weight:500;font-family:'JetBrains Mono',monospace}
+  .mx-close.past{color:var(--red)}
+  .mx-close.soon{color:var(--amber)}
+  .mx-close.ok{color:var(--green)}
+
+  .matrix-legend{display:flex;gap:14px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line);font-size:10.5px;color:var(--ink-dim);align-items:center;flex-wrap:wrap;font-family:'JetBrains Mono',monospace;letter-spacing:0.04em}
+  .matrix-legend .dot{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:middle}
+  .matrix-legend .dot.done{background:#E1F5EE;border:1px solid #5DCAA5}
+  .matrix-legend .dot.due{background:#FAEEDA;border:1px solid #F0C97A}
+  .matrix-legend .dot.na{background:#f4f4f4;border:1px solid #d8d8d8}
+  .matrix-legend .dot.blank{background:#fff;border:1px dashed #d8d8d4}
+
+  .mx-tip{position:fixed;background:#fff;border:1px solid var(--accent);box-shadow:0 4px 12px rgba(0,0,0,0.1);padding:8px 12px;font-size:12px;color:var(--ink);pointer-events:none;z-index:1000;border-radius:6px;display:none}
+  .mx-tip b{color:var(--accent);font-size:13px;font-weight:600;display:block;margin-bottom:2px}
+
+  .matrix::-webkit-scrollbar{width:6px}
+  .matrix::-webkit-scrollbar-track{background:transparent}
+  .matrix::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:3px}
+  .matrix::-webkit-scrollbar-thumb:hover{background:var(--accent)}
+
+  /* People grid */
+  .people-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;font-size:12.5px}
+  .people-col h4{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-dim);letter-spacing:0.1em;text-transform:uppercase;font-weight:500;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+  .person{display:flex;justify-content:space-between;padding:6px 0;font-size:12.5px;border-bottom:1px solid #f5f5f3;align-items:baseline}
+  .person:last-child{border-bottom:none}
+  .person .nm{color:var(--ink)}
+  .person .ct{color:var(--accent);font-weight:600;font-family:'JetBrains Mono',monospace;font-size:11.5px}
+  .person .ct .of{color:var(--ink-mute);font-weight:400;margin-left:3px}
+
+  @media (max-width:1100px){
+    .kpi-strip{grid-template-columns:repeat(2,1fr)}
+    .grid-12 > *{grid-column:span 12}
+    .people-grid{grid-template-columns:1fr}
+  }
+  @media (max-width:640px){
+    .kpi-strip{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="brand">
+    <div class="crest">
+      <div class="seal">U</div>
+      <h1>University Title Agency <em>— Executive Brief</em></h1>
+    </div>
+    <div class="sub">Settlement Operations · Pipeline · Risk</div>
+  </div>
+  <div class="meta">
+    <div class="pulse">Month-to-Date · May 2026</div>
+    <div>11 Settlement Agencies · 6 States</div>
+    <div>447 Open · 246 Disbursed</div>
+  </div>
+</div>
+
+<!-- ============ HEADLINE KPIs ============ -->
+<div class="section">
+  <div class="section-head">
+    <span class="num">01</span>
+    <h2>Performance at a glance</h2>
+    <span class="rule"></span>
+    <span class="note">Month-to-date · 2026-05-23</span>
+  </div>
+
+  <div class="kpi-strip">
+    <div class="kpi">
+      <div class="label">Realized revenue</div>
+      <div class="value">$301,776</div>
+      <div class="foot">
+        <span>246 orders disbursed</span>
+        <span class="delta up">▲ MTD</span>
+      </div>
+    </div>
+    <div class="kpi">
+      <div class="label">Upcoming revenue</div>
+      <div class="value">$273,816</div>
+      <div class="foot">
+        <span>137 orders in transit</span>
+        <span class="delta up">0.91× realized</span>
+      </div>
+    </div>
+    <div class="kpi">
+      <div class="label">Open orders</div>
+      <div class="value">447</div>
+      <div class="foot">
+        <span>Across 11 agencies</span>
+        <span class="delta warn">$79.8M purchase</span>
+      </div>
+    </div>
+    <div class="kpi">
+      <div class="label">Closing this month</div>
+      <div class="value">176</div>
+      <div class="foot">
+        <span>Pre-close + processor</span>
+        <span class="delta up">in queue</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ REVENUE GEOGRAPHY + STACK ============ -->
+<div class="section">
+  <div class="section-head">
+    <span class="num">02</span>
+    <h2>Revenue geography &amp; trajectory</h2>
+    <span class="rule"></span>
+    <span class="note">Realized · Upcoming · Per agency</span>
+  </div>
+
+  <div class="grid-12">
+    <div class="card span-6">
+      <div class="ttl">
+        <h3>Realized revenue by state</h3>
+        <span class="tag">USD · 246 disbursed</span>
+      </div>
+      <div class="map-wrap" id="mapRealized"></div>
+      <div class="legend">
+        <span>Low</span>
+        <div class="scale">
+          <span style="background:#E6EEF7"></span>
+          <span style="background:#B5CCE3"></span>
+          <span style="background:#7FA9CD"></span>
+          <span style="background:#3D75AB"></span>
+          <span style="background:#0f4c81"></span>
+        </div>
+        <span>High · $154.7K</span>
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:var(--ink-mute);font-family:'JetBrains Mono',monospace">MI &amp; FL lead · 78% of realized revenue</div>
+    </div>
+
+    <div class="card span-6">
+      <div class="ttl">
+        <h3>Upcoming revenue by state</h3>
+        <span class="tag">USD · 137 open</span>
+      </div>
+      <div class="map-wrap" id="mapUpcoming"></div>
+      <div class="legend">
+        <span>Low</span>
+        <div class="scale">
+          <span style="background:#EAF3DE"></span>
+          <span style="background:#C0DD97"></span>
+          <span style="background:#97C459"></span>
+          <span style="background:#3B6D11"></span>
+          <span style="background:#173404"></span>
+        </div>
+        <span>High · $100.8K</span>
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:var(--ink-mute);font-family:'JetBrains Mono',monospace">MI &amp; FL lead · 64% of upcoming revenue</div>
+    </div>
+
+    <div class="card span-12">
+      <div class="ttl">
+        <h3>Revenue by settlement agency</h3>
+        <span class="tag">Realized · Upcoming</span>
+      </div>
+      <div style="position:relative;height:300px">
+        <canvas id="revenueChart"></canvas>
+      </div>
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line);font-size:11px;color:var(--ink-dim);letter-spacing:0.04em;display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace">
+        <span>Total commit: <span style="color:var(--accent);font-weight:600">$575,592</span></span>
+        <span>Avg / disbursed: <span style="color:var(--ink);font-weight:600">$1,227</span></span>
+        <span>Avg / upcoming: <span style="color:var(--ink);font-weight:600">$1,999</span></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ PIPELINE COMPOSITION ============ -->
+<div class="section">
+  <div class="section-head">
+    <span class="num">03</span>
+    <h2>Pipeline composition</h2>
+    <span class="rule"></span>
+    <span class="note">State · Type · Source</span>
+  </div>
+
+  <div class="grid-12">
+    <div class="card span-5">
+      <div class="ttl">
+        <h3>Top markets</h3>
+        <span class="tag">By upcoming revenue</span>
+      </div>
+      <table>
+        <thead>
+          <tr><th>State</th><th style="text-align:right">Open ord.</th><th style="text-align:right">Upcoming rev.</th></tr>
+        </thead>
+        <tbody id="stateTable"></tbody>
+      </table>
+    </div>
+
+    <div class="card span-4">
+      <div class="ttl">
+        <h3>Transaction mix</h3>
+        <span class="tag">447 open orders</span>
+      </div>
+      <div class="chips" id="txChips" style="margin-top:8px"></div>
+
+      <div style="margin-top:22px;padding-top:18px;border-top:1px solid var(--line)">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--ink-dim);margin-bottom:14px">Closing pressure · 176 deals</div>
+        <div class="pressure" id="pressureCells"></div>
+      </div>
+    </div>
+
+    <div class="card span-3">
+      <div class="ttl">
+        <h3>Top sources</h3>
+        <span class="tag">Origin</span>
+      </div>
+      <div class="srcs" id="sourcesList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ STAFF LOAD ============ -->
+<div class="section">
+  <div class="section-head">
+    <span class="num">04</span>
+    <h2>Staff load · current month</h2>
+    <span class="rule"></span>
+    <span class="note">Closing files in May</span>
+  </div>
+
+  <div class="card">
+    <div class="people-grid">
+      <div class="people-col">
+        <h4>Escrow officers — file count</h4>
+        <div id="officersList"></div>
+      </div>
+      <div class="people-col">
+        <h4>Pre-processors — file count</h4>
+        <div id="preprocList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ OPERATIONAL RISK ============ -->
+<div class="section">
+  <div class="section-head">
+    <span class="num">05</span>
+    <h2>Operational risk &amp; this month's closings</h2>
+    <span class="rule"></span>
+    <span class="note">Tasks · Aging · By order</span>
+  </div>
+
+  <div class="grid-12">
+    <!-- PRE-CLOSING (Escrow Officer) -->
+    <div class="card span-6">
+      <div class="ttl">
+        <h3>Pre-closing tasks <em>— Escrow Officers</em></h3>
+        <span class="tag">176 orders · 4 tasks</span>
+      </div>
+
+      <div class="filter-row" id="pcFilters">
+        <button class="filt active" data-pc="all">All <span class="ct">176</span></button>
+        <button class="filt" data-pc="past">Past close <span class="ct" id="pcPast">—</span></button>
+        <button class="filt" data-pc="due">Has due <span class="ct" id="pcDue">—</span></button>
+        <button class="filt" data-pc="unassigned">Unassigned <span class="ct" id="pcUnas">—</span></button>
+        <button class="filt" data-pc="roxie">Roxie Dase <span class="ct">38</span></button>
+        <button class="filt" data-pc="anna">Anna Rosenthal <span class="ct">30</span></button>
+        <button class="filt" data-pc="denise">Denise Clarke <span class="ct">23</span></button>
+        <button class="filt" data-pc="tammy">Tammy Krein <span class="ct">21</span></button>
+      </div>
+
+      <div class="agg-bar" id="pcAggBar"></div>
+
+      <div class="matrix-head pc-head">
+        <div>Order</div>
+        <div>Officer</div>
+        <div title="Schedule Closing">SCH</div>
+        <div title="Balance Accounting">BAL</div>
+        <div title="Send Out Final ALTA">ALTA</div>
+        <div title="Send Docs to Notary">NOT</div>
+        <div>Close</div>
+      </div>
+      <div class="matrix" id="pcMatrix"></div>
+
+      <div class="matrix-legend">
+        <span><span class="dot done"></span>Completed</span>
+        <span><span class="dot due"></span>Due / open</span>
+        <span><span class="dot na"></span>N/A</span>
+        <span><span class="dot blank"></span>Unset</span>
+        <span style="margin-left:auto;color:var(--ink-mute)">Hover cell for date</span>
+      </div>
+    </div>
+
+    <!-- PROCESSOR TASKS -->
+    <div class="card span-6">
+      <div class="ttl">
+        <h3>Processor tasks <em>— Pre-Processors</em></h3>
+        <span class="tag">176 orders · 5 tasks</span>
+      </div>
+
+      <div class="filter-row" id="prFilters">
+        <button class="filt active" data-pr="all">All <span class="ct">176</span></button>
+        <button class="filt" data-pr="past">Past close <span class="ct" id="prPast">—</span></button>
+        <button class="filt" data-pr="due">Has due <span class="ct" id="prDue">—</span></button>
+        <button class="filt" data-pr="unassigned">Unassigned <span class="ct" id="prUnas">—</span></button>
+        <button class="filt" data-pr="christina">Christina M. <span class="ct">42</span></button>
+        <button class="filt" data-pr="michelle">Michelle D. <span class="ct">21</span></button>
+        <button class="filt" data-pr="jenelee">Jenelee C. <span class="ct">20</span></button>
+        <button class="filt" data-pr="denise">Denise C. <span class="ct">19</span></button>
+      </div>
+
+      <div class="agg-bar" id="prAggBar"></div>
+
+      <div class="matrix-head pr-head">
+        <div>Order</div>
+        <div>Pre-Proc</div>
+        <div title="Receipt in EMD">EMD</div>
+        <div title="Complete Commitment">CMT</div>
+        <div title="Send Commitment &amp; Needs List">SND</div>
+        <div title="Schedule Buyer Signing">BUY</div>
+        <div title="Schedule Seller Signing">SLR</div>
+        <div>Close</div>
+      </div>
+      <div class="matrix" id="prMatrix"></div>
+
+      <div class="matrix-legend">
+        <span><span class="dot done"></span>Completed</span>
+        <span><span class="dot due"></span>Due / open</span>
+        <span><span class="dot na"></span>N/A</span>
+        <span><span class="dot blank"></span>Unset</span>
+        <span style="margin-left:auto;color:var(--ink-mute)">Hover cell for date</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="foot-strip">
+  <span>University Title Agency · Settlement Operations Dashboard</span>
+  <span>Sources: Disbursed · Open · Upcoming · Pre-Closing · Processor Tasks</span>
+  <span>Generated 2026-05-23</span>
+</div>
+
+<script>
+/* ===== Data (inlined) ===== */
+const DATA = {"today":"2026-05-23","disbursed":[{"agency":"Advance Title Agency","count":29,"avg":2344.12,"total":67979.62},{"agency":"University Title Agency","count":22,"avg":1431.52,"total":31493.36},{"agency":"Apollo Title Agency","count":35,"avg":803.22,"total":28112.75},{"agency":"Trust Title Agency","count":26,"avg":689.94,"total":17938.54},{"agency":"Tampa, FL","count":47,"avg":1749.91,"total":82245.99},{"agency":"Birmingham, AL - University Title Agency","count":5,"avg":1772.58,"total":8862.92},{"agency":"Troy, MI - University Title Agency","count":11,"avg":829.72,"total":9126.94},{"agency":"Pueblo, CO","count":44,"avg":558.18,"total":24559.7},{"agency":"Otero County Title","count":11,"avg":1053.92,"total":11593.15},{"agency":"Kansas","count":11,"avg":729.55,"total":8025.0},{"agency":"Scottsdale, AZ","count":5,"avg":2367.66,"total":11838.28}],"upcoming":[{"agency":"Pueblo, CO","upcoming":48352.79,"avg":1422.14,"orders":34},{"agency":"Otero County Title","upcoming":14594.3,"avg":1621.59,"orders":9},{"agency":"Apollo Title Agency","upcoming":32266.17,"avg":1898.01,"orders":17},{"agency":"Tampa, FL","upcoming":74576.4,"avg":3389.84,"orders":22},{"agency":"University Title Agency","upcoming":23399.22,"avg":1799.94,"orders":13},{"agency":"Kansas","upcoming":18013.31,"avg":1637.57,"orders":11},{"agency":"Troy, MI - University Title Agency","upcoming":9251.38,"avg":1850.28,"orders":5},{"agency":"Trust Title Agency","upcoming":21891.5,"avg":1563.68,"orders":14},{"agency":"Scottsdale, AZ","upcoming":10083.26,"avg":3361.09,"orders":3},{"agency":"Advance Title Agency","upcoming":13960.47,"avg":2792.09,"orders":5},{"agency":"Birmingham, AL - University Title Agency","upcoming":7427.16,"avg":1856.79,"orders":4}],"open_count":447,"open_by_state":[{"s":"MI","c":196},{"s":"CO","c":138},{"s":"FL","c":49},{"s":"KS","c":22},{"s":"AL","c":20},{"s":"AZ","c":11},{"s":"NC","c":4},{"s":"?","c":3},{"s":"TN","c":2},{"s":"MN","c":1},{"s":"PA","c":1}],"open_by_tx":[{"t":"Simultaneous","c":88},{"t":"Title Search Only","c":71},{"t":"Pre-Title","c":64},{"t":"Refinance","c":61},{"t":"Cash Sale","c":60},{"t":"Buy Side Purchase","c":42},{"t":"List Side Sale","c":28},{"t":"MI WS Cash","c":12},{"t":"Land Contract","c":8},{"t":"AL WS Simultaneous","c":5},{"t":"Escrow Only","c":4},{"t":"Subordinate Order","c":3},{"t":"MI WS Simultaneous","c":1}],"open_by_tx_group":[{"g":"Purchase","c":244},{"g":"Pre/Search","c":135},{"g":"Refinance","c":61},{"g":"Other","c":7}],"open_sources_top":[{"n":"LPT Realty LLC","c":25},{"n":"National Mortgage Home Loans LLC","c":19},{"n":"RE/MAX of Pueblo, Inc","c":15},{"n":"Keller Williams Realty, Inc. - Domain","c":13},{"n":"Triveline Real Estate","c":10},{"n":"Advantage Home Mortgage, LLC","c":8},{"n":"RE/MAX Associates","c":7},{"n":"NEXA Mortgage, LLC","c":6},{"n":"Top Agent Realty","c":5},{"n":"Showtime Realty","c":5},{"n":"eXp Realty LLC","c":5},{"n":"Homan Realty Group Inc","c":4},{"n":"EXP Realty LLC","c":4},{"n":"BlackFinn REI LLC","c":4},{"n":"RFLF 4, LLC","c":4}],"open_agency":[{"a":"Otero County Title","c":87},{"a":"Apollo Title Agency","c":75},{"a":"Trust Title Agency","c":60},{"a":"Pueblo, CO - University Title Agency","c":52},{"a":"Tampa, FL - University Title Agency","c":48},{"a":"University Title Agency - University Title Agency","c":38},{"a":"Advance Title Agency","c":29},{"a":"Kansas - University Title Agency","c":22},{"a":"Birmingham, AL - University Title Agency","c":20},{"a":"Scottsdale, AZ - University Title Agency","c":11},{"a":"Troy, MI - University Title Agency","c":5}],"preclose_rows":[{"o":"26-28838-CO","s":"CO","officer":"Roxie Dase","cd":"05/01","d":-22,"t":[["blank",null],["due","04/30/2026"],["due","04/29/2026"],["na",null]]},{"o":"26-28760-KS","s":"KS","officer":"Denise Clarke","cd":"05/01","d":-22,"t":[["done","05/01/2026"],["done","05/01/2026"],["done","04/30/2026"],["na",null]]},{"o":"26-28836-KS","s":"KS","officer":"Denise Clarke","cd":"05/04","d":-18,"t":[["done","05/05/2026"],["done","05/01/2026"],["done","05/01/2026"],["na",null]]},{"o":"26-29811-FL","s":"FL","officer":"","cd":"05/05","d":-18,"t":[["na",null],["na",null],["na",null],["na",null]]},{"o":"26-28592-CO","s":"CO","officer":"Jim Newman","cd":"05/06","d":-12,"t":[["na",null],["due","05/05/2026"],["na",null],["na",null]]},{"o":"26-28962-KS","s":"KS","officer":"Denise Clarke","cd":"05/06","d":-17,"t":[["done","05/01/2026"],["done","05/01/2026"],["done","05/01/2026"],["na",null]]},{"o":"26-28693-MI","s":"MI","officer":"Nicole Lakawskas","cd":"05/07","d":-16,"t":[["done","05/01/2026"],["done","05/06/2026"],["done","05/05/2026"],["na",null]]},{"o":"26-29453-KS","s":"KS","officer":"Denise Clarke","cd":"05/07","d":-16,"t":[["done","05/08/2026"],["done","05/08/2026"],["done","05/06/2026"],["na",null]]},{"o":"26-29236-KS","s":"KS","officer":"Denise Clarke","cd":"05/07","d":-16,"t":[["done","05/06/2026"],["done","05/08/2026"],["na",null],["na",null]]},{"o":"26-29066-CO","s":"CO","officer":"Roxie Dase","cd":"05/07","d":5,"t":[["done","05/06/2026"],["done","05/06/2026"],["na",null],["na",null]]},{"o":"26-29061-CO","s":"CO","officer":"Roxie Dase","cd":"05/08","d":-10,"t":[["blank",null],["due","05/07/2026"],["na",null],["na",null]]},{"o":"26-29258-CO","s":"CO","officer":"Roxie Dase","cd":"05/11","d":-8,"t":[["blank",null],["due","05/08/2026"],["na",null],["na",null]]},{"o":"26-28940-CO","s":"CO","officer":"","cd":"05/12","d":-11,"t":[["blank",null],["due","05/11/2026"],["due","05/08/2026"],["na",null]]},{"o":"26-29159-CO","s":"CO","officer":"Roxie Dase","cd":"05/12","d":3,"t":[["done","05/11/2026"],["due","05/11/2026"],["na",null],["na",null]]},{"o":"26-29074-KS","s":"KS","officer":"Denise Clarke","cd":"05/12","d":-11,"t":[["done","05/13/2026"],["done","05/13/2026"],["done","05/07/2026"],["na",null]]},{"o":"26-28905-KS","s":"KS","officer":"Denise Clarke","cd":"05/13","d":-10,"t":[["done","04/21/2026"],["done","05/13/2026"],["na",null],["na",null]]},{"o":"26-29640-KS","s":"KS","officer":"Denise Clarke","cd":"05/14","d":-9,"t":[["done","05/15/2026"],["done","05/15/2026"],["na",null],["na",null]]},{"o":"25-26525-MI","s":"MI","officer":"Tammy Krein","cd":"05/14","d":-8,"t":[["done","05/13/2026"],["done","05/14/2026"],["done","05/13/2026"],["na",null]]},{"o":"26-29195-CO","s":"CO","officer":"Roxie Dase","cd":"05/15","d":-8,"t":[["na",null],["na",null],["na",null],["na",null]]},{"o":"26-29192-CO","s":"CO","officer":"Roxie Dase","cd":"05/15","d":-8,"t":[["na",null],["na",null],["na",null],["na",null]]},{"o":"26-29188-CO","s":"CO","officer":"Roxie Dase","cd":"05/15","d":-8,"t":[["na",null],["na",null],["na",null],["na",null]]},{"o":"26-29356-MI","s":"MI","officer":"Tammy Krein","cd":"05/15","d":-8,"t":[["done","05/13/2026"],["due","05/14/2026"],["na",null],["na",null]]},{"o":"26-29187-CO","s":"CO","officer":"Roxie Dase","cd":"05/15","d":-8,"t":[["na",null],["na",null],["na",null],["na",null]]},{"o":"26-29194-CO","s":"CO","officer":"Roxie Dase","cd":"05/15","d":-8,"t":[["na",null],["na",null],["na",null],["na",null]]},{"o":"26-29183-CO","s":"CO","officer":"Roxie Dase","cd":"05/15","d":-8,"t":[["na",null],["na",null],["na",null],["na",null]]},{"o":"26-29191-CO","s":"CO","officer":"Roxie Dase","cd":"05/15","d":-8,"t":[["na",null],["na",null],["na",null],["na",null]]},{"o":"26-29193-CO","s":"CO","officer":"Roxie Dase","cd":"05/15","d":-8,"t":[["na",null],["na",null],["na",null],["na",null]]},{"o":"26-29197-CO","s":"CO","officer":"Roxie Dase","cd":"05/15","d":-8,"t":[["na",null],["na",null],["na",null],["na",null]]},{"o":"26-29737-MI","s":"MI","officer":"Tammy Krein","cd":"05/15","d":-8,"t":[["done","05/12/2026"],["done","05/13/2026"],["na",null],["na",null]]},{"o":"26-29230-KS","s":"KS","officer":"Denise Clarke","cd":"05/18","d":-5,"t":[["done","05/14/2026"],["done","05/18/2026"],["done","05/14/2026"],["na",null]]},{"o":"26-29271-CO","s":"CO","officer":"Roxie Dase","cd":"05/18","d":-5,"t":[["blank",null],["due","05/15/2026"],["done","05/15/2026"],["na",null]]},{"o":"26-29230-KS-A","s":"KS","officer":"Denise Clarke","cd":"05/18","d":-5,"t":[["blank",null],["done","05/18/2026"],["done","05/18/2026"],["na",null]]},{"o":"26-29563-CO","s":"CO","officer":"Roxie Dase","cd":"05/18","d":-1,"t":[["done","05/21/2026"],["done","05/21/2026"],["na",null],["na",null]]},{"o":"26-29389-CO","s":"CO","officer":"Roxie Dase","cd":"05/19","d":-4,"t":[["done","05/21/2026"],["done","05/21/2026"],["na",null],["na",null]]},{"o":"26-29624-CO","s":"CO","officer":"Roxie Dase","cd":"05/19","d":-4,"t":[["blank",null],["due","05/18/2026"],["done","05/18/2026"],["na",null]]},{"o":"26-29568-CO","s":"CO","officer":"Roxie Dase","cd":"05/19","d":-4,"t":[["due","05/19/2026"],["due","05/18/2026"],["done","05/19/2026"],["na",null]]},{"o":"26-29277-FL","s":"FL","officer":"Angela Martin","cd":"05/19","d":3,"t":[["na",null],["na",null],["na",null],["na",null]]},{"o":"26-28993-CO","s":"CO","officer":"Roxie Dase","cd":"05/19","d":-4,"t":[["blank",null],["due","05/18/2026"],["done","05/04/2026"],["na",null]]},{"o":"26-29365-FL","s":"FL","officer":"Yazara N Redding","cd":"05/20","d":-3,"t":[["na",null],["due","05/19/2026"],["due","05/18/2026"],["due","05/19/2026"]]},{"o":"26-29135-CO","s":"CO","officer":"Roxie Dase","cd":"05/20","d":-3,"t":[["blank",null],["due","05/19/2026"],["done","05/20/2026"],["na",null]]},{"o":"26-28880-MI","s":"MI","officer":"Tammy Krein","cd":"05/20","d":-3,"t":[["na",null],["na",null],["na",null],["na",null]]},{"o":"26-29346-MI","s":"MI","officer":"Nicole Lakawskas","cd":"05/20","d":3,"t":[["na",null],["done","05/18/2026"],["na",null],["na",null]]},{"o":"26-27658-MI","s":"MI","officer":"Tammy Krein","cd":"05/20","d":-3,"t":[["done","05/15/2026"],["done","05/18/2026"],["done","05/18/2026"],["na",null]]},{"o":"26-29170-CO","s":"CO","officer":"Danica Rodriguez","cd":"05/21","d":-2,"t":[["blank",null],["due","05/20/2026"],["done","05/20/2026"],["na",null]]},{"o":"25-26595-FL","s":"FL","officer":"Angela Martin","cd":"05/21","d":-2,"t":[["na",null],["done","05/22/2026"],["done","05/22/2026"],["due","05/20/2026"]]},{"o":"26-29682-FL","s":"FL","officer":"Angela Martin","cd":"05/21","d":4,"t":[["na",null],["na",null],["na",null],["na",null]]},{"o":"26-29518-MI","s":"MI","officer":"Anna Rosenthal","cd":"05/21","d":-2,"t":[["done","05/20/2026"],["due","05/20/2026"],["done","05/20/2026"],["na",null]]},{"o":"26-28161-FL","s":"FL","officer":"Yazara N Redding","cd":"05/21","d":4,"t":[["na",null],["na",null],["na",null],["na",null]]},{"o":"26-29771-KS","s":"KS","officer":"Denise Clarke","cd":"05/21","d":-2,"t":[["blank",null],["due","05/20/2026"],["na",null],["na",null]]},{"o":"26-29314-CO","s":"CO","officer":"Roxie Dase","cd":"05/21","d":-2,"t":[["done","05/22/2026"],["done","05/22/2026"],["done","05/20/2026"],["na",null]]},{"o":"26-29237-MI","s":"MI","officer":"Tammy Krein","cd":"05/21","d":-2,"t":[["done","05/18/2026"],["due","05/20/2026"],["done","05/20/2026"],["na",null]]},{"o":"26-29238-CO","s":"CO","officer":"Jim Newman","cd":"05/21","d":-2,"t":[["blank",null],["due","05/20/2026"],["due","05/19/2026"],["na",null]]},{"o":"26-29733-MI","s":"MI","officer":"Anna Rosenthal","cd":"05/21","d":4,"t":[["na",null],["due","05/20/2026"],["na",null],["na",null]]},{"o":"26-29788-MI","s":"MI","officer":"Anna Rosenthal","cd":"05/21","d":4,"t":[["na",null],["due","05/20/2026"],["na",null],["na",null]]},{"o":"26-28830-MI","s":"MI","officer":"Anna Rosenthal","cd":"05/22","d":-1,"t":[["blank",null],["due","05/21/2026"],["due","05/20/2026"],["na",null]]},{"o":"26-29272-FL","s":"FL","officer":"Tina Batayeh","cd":"05/22","d":-1,"t":[["na",null],["due","05/21/2026"],["due","05/20/2026"],["due","05/21/2026"]]},{"o":"26-29847-CO","s":"CO","officer":"Danica Rodriguez","cd":"05/22","d":5,"t":[["due","05/22/2026"],["due","05/21/2026"],["na",null],["na",null]]},{"o":"26-29602-MI","s":"MI","officer":"Anna Rosenthal","cd":"05/22","d":-1,"t":[["done","05/20/2026"],["due","05/21/2026"],["done","05/20/2026"],["na",null]]},{"o":"26-28921-MI","s":"MI","officer":"Tammy Krein","cd":"05/22","d":-1,"t":[["done","05/21/2026"],["due","05/21/2026"],["na",null],["na",null]]},{"o":"26-29430-CO","s":"CO","officer":"Jim Newman","cd":"05/22","d":-1,"t":[["blank",null],["due","05/21/2026"],["due","05/20/2026"],["na",null]]},{"o":"26-27907-MI","s":"MI","officer":"Anna Rosenthal","cd":"05/22","d":-1,"t":[["done","05/20/2026"],["due","05/21/2026"],["done","05/21/2026"],["na",null]]},{"o":"26-27578-NC","s":"NC","officer":"Anna Rosenthal","cd":"05/22","d":5,"t":[["na",null],["due","05/21/2026"],["na",null],["na",null]]},{"o":"26-29489-MI","s":"MI","officer":"Anna Rosenthal","cd":"05/22","d":-1,"t":[["done","05/20/2026"],["due","05/21/2026"],["done","05/20/2026"],["na",null]]},{"o":"26-28980-KS","s":"KS","officer":"Denise Clarke","cd":"05/22","d":-1,"t":[["due","04/16/2026"],["due","05/21/2026"],["due","05/20/2026"],["na",null]]},{"o":"26-29712-MI-BC","s":"MI","officer":"Tammy Krein","cd":"05/22","d":-1,"t":[["done","05/21/2026"],["due","05/21/2026"],["done","05/21/2026"],["na",null]]},{"o":"26-29632-MI","s":"MI","officer":"Anna Rosenthal","cd":"05/22","d":-1,"t":[["done","05/20/2026"],["due","05/21/2026"],["done","05/21/2026"],["na",null]]},{"o":"26-29086-MI","s":"MI","officer":"Anna Rosenthal","cd":"05/22","d":-1,"t":[["done","05/20/2026"],["due","05/21/2026"],["done","05/21/2026"],["na",null]]},{"o":"26-29846-MI","s":"MI","officer":"Anna Rosenthal","cd":"05/22","d":-1,"t":[["done","05/20/2026"],["due","05/21/2026"],["na",null],["na",null]]},{"o":"26-29455-AZ","s":"AZ","officer":"Tammy Smith","cd":"05/22","d":-1,"t":[["blank",null],["due","05/21/2026"],["done","05/19/2026"],["na",null]]},{"o":"26-28660-CO","s":"CO","officer":"Roxie Dase","cd":"05/22","d":-1,"t":[["blank",null],["due","05/21/2026"],["done","05/05/2026"],["na",null]]},{"o":"26-27898-MI","s":"MI","officer":"Tammy Krein","cd":"05/22","d":-1,"t":[["due","03/17/2026"],["due","05/21/2026"],["na",null],["na",null]]},{"o":"26-29182-MI","s":"MI","officer":"Anna Rosenthal","cd":"05/22","d":-1,"t":[["done","05/21/2026"],["due","05/21/2026"],["done","05/22/2026"],["na",null]]},{"o":"26-29550-AL","s":"AL","officer":"Meaghan Dubbs","cd":"05/22","d":5,"t":[["na",null],["due","05/21/2026"],["na",null],["na",null]]},{"o":"26-29222-KS","s":"KS","officer":"Denise Clarke","cd":"05/22","d":5,"t":[["na",null],["due","05/21/2026"],["na",null],["na",null]]},{"o":"26-28593-KS","s":"KS","officer":"Denise Clarke","cd":"05/22","d":-1,"t":[["done","05/22/2026"],["done","05/22/2026"],["done","05/20/2026"],["na",null]]},{"o":"26-29347-MI","s":"MI","officer":"Tammy Krein","cd":"05/22","d":-1,"t":[["na",null],["na",null],["na",null],["na",null]]},{"o":"26-29125-KS","s":"KS","officer":"Denise Clarke","cd":"05/22","d":-1,"t":[["done","05/22/2026"],["done","05/22/2026"],["done","05/21/2026"],["na",null]]},{"o":"26-29503-MI","s":"MI","officer":"Anna Rosenthal","cd":"05/22","d":5,"t":[["na",null],["due","05/21/2026"],["na",null],["na",null]]},{"o":"26-28927-CO","s":"CO","officer":"Jim Newman","cd":"05/22","d":-1,"t":[["blank",null],["due","05/21/2026"],["due","05/20/2026"],["na",null]]},{"o":"26-29252-MI","s":"MI","officer":"Anna Rosenthal","cd":"05/22","d":-1,"t":[["na",null],["due","05/21/2026"],["done","05/21/2026"],["na",null]]},{"o":"26-28110-MI","s":"MI","officer":"Tammy Krein","cd":"05/22","d":-1,"t":[["done","05/19/2026"],["done","05/20/2026"],["na",null],["na",null]]},{"o":"26-29838-CO","s":"CO","officer":"Jim Newman","cd":"05/22","d":-1,"t":[["blank",null],["due","05/21/2026"],["na",null],["na",null]]},{"o":"26-28214-MI-BC","s":"MI","officer":"Tammy Krein","cd":"05/22","d":-1,"t":[["due","05/26/2026"],["due","05/21/2026"],["na",null],["na",null]]},{"o":"26-29232-FL","s":"FL","officer":"Tina Batayeh","cd":"05/22","d":5,"t":[["na",null],["na",null],["na",null],["na",null]]},{"o":"26-28811-MI","s":"MI","officer":"Tammy Krein","cd":"05/22","d":-1,"t":[["done","05/20/2026"],["done","05/22/2026"],["na",null],["na",null]]},{"o":"26-29609-MI","s":"MI","officer":"Tammy Krein","cd":"05/22","d":-1,"t":[["done","05/21/2026"],["done","05/22/2026"],["done","05/08/2026"],["na",null]]},{"o":"26-29361-FL","s":"FL","officer":"Tina Batayeh","cd":"05/22","d":-1,"t":[["na",null],["due","05/21/2026"],["due","05/20/2026"],["due","05/21/2026"]]},{"o":"26-29546-FL","s":"FL","officer":"Tina Batayeh","cd":"05/22","d":-1,"t":[["na",null],["due","05/21/2026"],["na",null],["due","05/21/2026"]]},{"o":"26-29501-FL","s":"FL","officer":"Angela Martin","cd":"05/23","d":6,"t":[["na",null],["na",null],["na",null],["na",null]]},{"o":"26-29850-AL","s":"AL","officer":"Meaghan Dubbs","cd":"05/25","d":6,"t":[["na",null],["due","05/22/2026"],["na",null],["na",null]]},{"o":"26-29552-MI","s":"MI","officer":"Nicole Lakawskas","cd":"05/26","d":3,"t":[["done","05/21/2026"],["due","05/22/2026"],["blank",null],["na",null]]},{"o":"26-29106-KS","s":"KS","officer":"Denise Clarke","cd":"05/26","d":3,"t":[["blank",null],["due","05/22/2026"],["na",null],["na",null]]},{"o":"26-29515-KS","s":"KS","officer":"Denise Clarke","cd":"05/26","d":3,"t":[["blank",null],["due","05/22/2026"],["done","05/21/2026"],["na",null]]},{"o":"26-29131-FL","s":"FL","officer":"Angela Martin","cd":"05/26","d":3,"t":[["na",null],["due","05/22/2026"],["na",null],["due","05/22/2026"]]},{"o":"26-29416-FL","s":"FL","officer":"Meaghan Dubbs","cd":"05/26","d":3,"t":[["na",null],["due","05/22/2026"],["na",null],["due","05/22/2026"]]},{"o":"26-28987-CO","s":"CO","officer":"Jim Newman","cd":"05/26","d":3,"t":[["blank",null],["due","05/22/2026"],["due","05/21/2026"],["na",null]]},{"o":"26-29229-MI","s":"MI","officer":"Anna Rosenthal","cd":"05/26","d":9,"t":[["na",null],["due","05/22/2026"],["na",null],["na",null]]},{"o":"26-29330-FL","s":"FL","officer":"Angela Martin","cd":"05/26","d":3,"t":[["na",null],["due","05/22/2026"],["due","05/21/2026"],["done","05/22/2026"]]},{"o":"26-29708-MI","s":"MI","officer":"Anna Rosenthal","cd":"05/26","d":3,"t":[["done","05/20/2026"],["due","05/22/2026"],["na",null],["na",null]]},{"o":"26-29952-MI","s":"MI","officer":"Tammy Krein","cd":"05/26","d":9,"t":[["na",null],["due","05/22/2026"],["na",null],["na",null]]},{"o":"26-29321-CO","s":"CO","officer":"Roxie Dase","cd":"05/26","d":3,"t":[["due","05/13/2026"],["due","05/22/2026"],["done","05/22/2026"],["na",null]]},{"o":"26-28801-MI","s":"MI","officer":"Anna Rosenthal","cd":"05/26","d":3,"t":[["done","05/21/2026"],["due","05/22/2026"],["done","05/22/2026"],["na",null]]},{"o":"26-29519-MI","s":"MI","officer":"Anna Rosenthal","cd":"05/26","d":3,"t":[["done","05/20/2026"],["due","05/22/2026"],["done","05/22/2026"],["na",null]]},{"o":"26-29129-FL","s":"FL","officer":"Yazara N Redding","cd":"05/26","d":3,"t":[["na",null],["due","05/22/2026"],["done","05/18/2026"],["due","05/22/2026"]]},{"o":"26-29506-CO","s":"CO","officer":"Roxie Dase","cd":"05/26","d":3,"t":[["blank",null],["due","05/22/2026"],["due","05/21/2026"],["na",null]]},{"o":"26-29511-KS","s":"KS","officer":"Denise Clarke","cd":"05/26","d":3,"t":[["blank",null],["due","05/22/2026"],["due","05/21/2026"],["na",null]]},{"o":"26-29360-CO","s":"CO","officer":"Roxie Dase","cd":"05/26","d":3,"t":[["blank",null],["due","05/22/2026"],["due","05/21/2026"],["na",null]]},{"o":"26-28493-FL","s":"FL","officer":"Yazara N Redding","cd":"05/26","d":9,"t":[["na",null],["na",null],["na",null],["na",null]]},{"o":"26-27453-MI","s":"MI","officer":"Anna Rosenthal","cd":"05/26","d":3,"t":[["done","05/19/2026"],["due","05/22/2026"],["done","05/22/2026"],["na",null]]},{"o":"26-29490-CO","s":"CO","officer":"Roxie Dase","cd":"05/26","d":3,"t":[["blank",null],["due","05/22/2026"],["due","05/21/2026"],["na",null]]},{"o":"25-26781-MI","s":"MI","officer":"Anna Rosenthal","cd":"05/26","d":3,"t":[["done","05/22/2026"],["due","05/22/2026"],["blank",null],["na",null]]},{"o":"26-29542-MI","s":"MI","officer":"Tammy Krein","cd":"05/27","d":4,"t":[["done","05/22/2026"],["due","05/26/2026"],["blank",null],["na",null]]},{"o":"26-29517-MI","s":"MI","officer":"Anna Rosenthal","cd":"05/27","d":4,"t":[["done","05/22/2026"],["due","05/26/2026"],["blank",null],["na",null]]},{"o":"26-29320-MI","s":"MI","officer":"Anna Rosenthal","cd":"05/27","d":4,"t":[["done","05/22/2026"],["due","05/26/2026"],["blank",null],["na",null]]},{"o":"26-29577-MI","s":"MI","officer":"Tammy Krein","cd":"05/27","d":4,"t":[["na",null],["done","05/22/2026"],["na",null],["na",null]]},{"o":"26-29603-MI","s":"MI","officer":"Anna Rosenthal","cd":"05/27","d":4,"t":[["done","05/22/2026"],["due","05/26/2026"],["blank",null],["na",null]]},{"o":"26-29703-CO","s":"CO","officer":"Roxie Dase","cd":"05/27","d":4,"t":[["due","05/19/2026"],["due","05/26/2026"],["due","05/22/2026"],["na",null]]},{"o":"26-28951-MI","s":"MI","officer":"Nicole Lakawskas","cd":"05/27","d":4,"t":[["na",null],["due","05/26/2026"],["blank",null],["na",null]]},{"o":"26-29755-MI","s":"MI","officer":"Anna Rosenthal","cd":"05/27","d":4,"t":[["done","05/22/2026"],["due","05/26/2026"],["na",null],["na",null]]},{"o":"26-29151-FL","s":"FL","officer":"Angela Martin","cd":"05/27","d":4,"t":[["na",null],["due","05/26/2026"],["due","05/22/2026"],["due","05/26/2026"]]},{"o":"26-29707-MI","s":"MI","officer":"Anna Rosenthal","cd":"05/27","d":4,"t":[["done","05/22/2026"],["due","05/26/2026"],["blank",null],["na",null]]},{"o":"26-29396-CO","s":"CO","officer":"Roxie Dase","cd":"05/27","d":4,"t":[["blank",null],["due","05/26/2026"],["due","05/22/2026"],["na",null]]},{"o":"26-29228-MI","s":"MI","officer":"Nicole Lakawskas","cd":"05/27","d":4,"t":[["due","05/14/2026"],["due","05/26/2026"],["done","05/14/2026"],["na",null]]},{"o":"26-29593-MI","s":"MI","officer":"Nicole Lakawskas","cd":"05/27","d":9,"t":[["na",null],["due","05/26/2026"],["na",null],["na",null]]},{"o":"26-29127-CO","s":"CO","officer":"Roxie Dase","cd":"05/27","d":4,"t":[["blank",null],["due","05/26/2026"],["due","05/22/2026"],["na",null]]},{"o":"26-27361-MI","s":"MI","officer":"Anna Rosenthal","cd":"05/27","d":4,"t":[["na",null],["due","05/26/2026"],["blank",null],["na",null]]},{"o":"26-28494-MI","s":"MI","officer":"Tammy Krein","cd":"05/27","d":9,"t":[["na",null],["due","05/26/2026"],["na",null],["na",null]]},{"o":"26-29354-CO","s":"CO","officer":"Danica Rodriguez","cd":"05/27","d":6,"t":[["blank",null],["due","05/26/2026"],["due","05/22/2026"],["na",null]]},{"o":"26-29260-MI","s":"MI","officer":"Anna Rosenthal","cd":"05/28","d":5,"t":[["done","05/22/2026"],["due","05/27/2026"],["na",null],["na",null]]},{"o":"26-29864-KS","s":"KS","officer":"Denise Clarke","cd":"05/28","d":5,"t":[["blank",null],["due","05/27/2026"],["due","05/26/2026"],["na",null]]},{"o":"26-29686-MI","s":"MI","officer":"Anna Rosenthal","cd":"05/28","d":5,"t":[["done","05/21/2026"],["due","05/27/2026"],["blank",null],["na",null]]},{"o":"26-29298-CO","s":"CO","officer":"Roxie Dase","cd":"05/28","d":10,"t":[["blank",null],["due","05/27/2026"],["na",null],["na",null]]},{"o":"26-28999-CO","s":"CO","officer":"Roxie Dase","cd":"05/28","d":5,"t":[["blank",null],["due","05/27/2026"],["due","05/26/2026"],["na",null]]},{"o":"26-29180-MI","s":"MI","officer":"Tammy Krein","cd":"05/28","d":5,"t":[["done","05/22/2026"],["due","05/27/2026"],["done","05/05/2026"],["na",null]]},{"o":"26-29753-MI","s":"MI","officer":"Anna Rosenthal","cd":"05/28","d":5,"t":[["done","05/22/2026"],["due","05/27/2026"],["blank",null],["na",null]]},{"o":"26-29548-FL","s":"FL","officer":"Angela Martin","cd":"05/28","d":5,"t":[["na",null],["due","05/27/2026"],["na",null],["due","05/27/2026"]]},{"o":"26-29888-AZ","s":"AZ","officer":"Tammy Smith","cd":"05/28","d":5,"t":[["due","05/27/2026"],["due","05/27/2026"],["na",null],["na",null]]},{"o":"26-29754-MI","s":"MI","officer":"Nicole Lakawskas","cd":"05/28","d":5,"t":[["done","05/22/2026"],["due","05/27/2026"],["blank",null],["na",null]]},{"o":"26-29797-MI","s":"MI","officer":"Tammy Krein","cd":"05/28","d":5,"t":[["done","05/22/2026"],["due","05/27/2026"],["na",null],["na",null]]},{"o":"26-26963-AL","s":"AL","officer":"Meaghan Dubbs","cd":"05/28","d":5,"t":[["due","01/22/2026"],["due","05/27/2026"],["due","05/26/2026"],["na",null]]},{"o":"26-29813-CO","s":"CO","officer":"Roxie Dase","cd":"05/28","d":5,"t":[["blank",null],["due","05/27/2026"],["due","05/26/2026"],["na",null]]},{"o":"26-29784-CO","s":"CO","officer":"Jim Newman","cd":"05/28","d":5,"t":[["blank",null],["due","05/27/2026"],["na",null],["na",null]]},{"o":"25-26022-AZ","s":"AZ","officer":"Tammy Smith","cd":"05/28","d":5,"t":[["blank",null],["due","05/27/2026"],["due","05/26/2026"],["na",null]]},{"o":"26-29810-CO","s":"CO","officer":"Jim Newman","cd":"05/29","d":6,"t":[["blank",null],["due","05/28/2026"],["na",null],["na",null]]},{"o":"26-29240-CO","s":"CO","officer":"Jim Newman","cd":"05/29","d":6,"t":[["blank",null],["due","05/28/2026"],["due","05/27/2026"],["na",null]]},{"o":"26-28263-FL","s":"FL","officer":"Angela Martin","cd":"05/29","d":6,"t":[["na",null],["due","05/28/2026"],["done","04/03/2026"],["due","05/28/2026"]]},{"o":"25-26767-AL","s":"AL","officer":"Meaghan Dubbs","cd":"05/29","d":11,"t":[["na",null],["due","05/28/2026"],["na",null],["na",null]]},{"o":"26-28372-AL","s":"AL","officer":"Meaghan Dubbs","cd":"05/29","d":6,"t":[["na",null],["na",null],["na",null],["na",null]]},{"o":"25-25627-AL","s":"AL","officer":"Meaghan Dubbs","cd":"05/29","d":11,"t":[["na",null],["due","05/28/2026"],["na",null],["na",null]]},{"o":"26-29806-CO","s":"CO","officer":"Roxie Dase","cd":"05/29","d":6,"t":[["blank",null],["due","05/28/2026"],["due","05/27/2026"],["na",null]]},{"o":"26-29241-CO","s":"CO","officer":"Roxie Dase","cd":"05/29","d":6,"t":[["blank",null],["due","05/28/2026"],["done","05/22/2026"],["na",null]]},{"o":"26-29160-MI","s":"MI","officer":"Nicole Lakawskas","cd":"05/29","d":6,"t":[["done","05/22/2026"],["due","05/28/2026"],["done","05/20/2026"],["na",null]]},{"o":"26-29331-CO","s":"CO","officer":"Roxie Dase","cd":"05/29","d":6,"t":[["blank",null],["due","05/28/2026"],["due","05/27/2026"],["na",null]]},{"o":"26-29633-CO","s":"CO","officer":"Roxie Dase","cd":"05/29","d":6,"t":[["blank",null],["due","05/28/2026"],["due","05/27/2026"],["na",null]]},{"o":"26-29186-MI","s":"MI","officer":"Nicole Lakawskas","cd":"05/29","d":6,"t":[["na",null],["due","05/28/2026"],["blank",null],["na",null]]},{"o":"26-29617-MI","s":"MI","officer":"Nicole Lakawskas","cd":"05/29","d":6,"t":[["done","05/22/2026"],["due","05/28/2026"],["blank",null],["na",null]]},{"o":"26-29798-FL","s":"FL","officer":"Angela Martin","cd":"05/29","d":11,"t":[["na",null],["na",null],["na",null],["na",null]]},{"o":"26-29070-AL","s":"AL","officer":"Meaghan Dubbs","cd":"05/29","d":6,"t":[["blank",null],["due","05/28/2026"],["na",null],["na",null]]},{"o":"26-29576-KS","s":"KS","officer":"Denise Clarke","cd":"05/29","d":6,"t":[["blank",null],["due","05/28/2026"],["due","05/27/2026"],["na",null]]},{"o":"26-29128-FL","s":"FL","officer":"Angela Martin","cd":"05/29","d":6,"t":[["na",null],["due","05/28/2026"],["na",null],["due","05/28/2026"]]},{"o":"26-29957-CO","s":"CO","officer":"Jim Newman","cd":"05/29","d":6,"t":[["blank",null],["due","05/28/2026"],["na",null],["na",null]]},{"o":"26-28639-CO","s":"CO","officer":"Danica Rodriguez","cd":"05/29","d":6,"t":[["blank",null],["due","05/25/2026"],["due","05/25/2026"],["na",null]]},{"o":"26-28052-PA","s":"PA","officer":"Meaghan Dubbs","cd":"05/29","d":11,"t":[["na",null],["due","05/28/2026"],["na",null],["na",null]]},{"o":"26-28975-KS","s":"KS","officer":"Denise Clarke","cd":"05/29","d":6,"t":[["blank",null],["due","05/28/2026"],["na",null],["na",null]]},{"o":"26-29226-MI","s":"MI","officer":"Tammy Krein","cd":"05/29","d":6,"t":[["done","05/20/2026"],["due","05/28/2026"],["na",null],["na",null]]},{"o":"26-28823-MI","s":"MI","officer":"Anna Rosenthal","cd":"05/29","d":6,"t":[["due","05/27/2026"],["due","05/28/2026"],["blank",null],["na",null]]},{"o":"26-29762-KS","s":"KS","officer":"Denise Clarke","cd":"05/29","d":6,"t":[["blank",null],["due","05/28/2026"],["na",null],["na",null]]},{"o":"26-29093-FL","s":"FL","officer":"Angela Martin","cd":"05/29","d":6,"t":[["na",null],["due","05/28/2026"],["due","05/27/2026"],["due","05/28/2026"]]},{"o":"26-28410-KS","s":"KS","officer":"Denise Clarke","cd":"05/29","d":6,"t":[["blank",null],["due","05/28/2026"],["due","05/27/2026"],["na",null]]},{"o":"26-28510-FL","s":"FL","officer":"Angela Martin","cd":"05/29","d":6,"t":[["na",null],["due","05/28/2026"],["due","05/27/2026"],["due","05/28/2026"]]},{"o":"26-29421-CO","s":"CO","officer":"Roxie Dase","cd":"05/29","d":6,"t":[["due","05/14/2026"],["due","05/28/2026"],["due","05/27/2026"],["na",null]]},{"o":"26-29171-FL","s":"FL","officer":"Yazara N Redding","cd":"05/29","d":11,"t":[["na",null],["na",null],["na",null],["na",null]]},{"o":"26-29554-CO","s":"CO","officer":"Oscar Perales","cd":"05/29","d":6,"t":[["na",null],["na",null],["na",null],["na",null]]},{"o":"26-26848-FL","s":"FL","officer":"Yazara N Redding","cd":"05/29","d":6,"t":[["na",null],["due","05/28/2026"],["due","05/27/2026"],["due","05/28/2026"]]},{"o":"26-29042-FL","s":"FL","officer":"Yazara N Redding","cd":"05/29","d":6,"t":[["na",null],["due","05/28/2026"],["done","04/10/2026"],["due","05/28/2026"]]},{"o":"26-29764-CO","s":"CO","officer":"Danica Rodriguez","cd":"05/29","d":11,"t":[["due","05/22/2026"],["due","05/28/2026"],["na",null],["na",null]]}],"proc_rows":[{"o":"26-28838-CO","s":"CO","prep":"Christina McCann","cd":"05/01","d":-22,"t":[["na",null],["done","04/06/2026"],["done","04/06/2026"],["na",null],["na",null]]},{"o":"26-28760-KS","s":"KS","prep":"Denise Clarke","cd":"05/01","d":-22,"t":[["done","03/30/2026"],["done","04/14/2026"],["done","04/15/2026"],["na",null],["na",null]]},{"o":"26-28836-KS","s":"KS","prep":"Denise Clarke","cd":"05/04","d":-19,"t":[["done","04/01/2026"],["done","04/06/2026"],["done","04/06/2026"],["na",null],["na",null]]},{"o":"26-29811-FL","s":"FL","prep":"","cd":"05/05","d":-18,"t":[["na",null],["na",null],["na",null],["na",null],["na",null]]},{"o":"26-28592-CO","s":"CO","prep":"Jim Newman","cd":"05/06","d":-17,"t":[["na",null],["done","05/04/2026"],["due","05/04/2026"],["blank",null],["na",null]]},{"o":"26-28962-KS","s":"KS","prep":"Denise Clarke","cd":"05/06","d":-17,"t":[["done","04/08/2026"],["done","04/17/2026"],["done","04/22/2026"],["na",null],["na",null]]},{"o":"26-28693-MI","s":"MI","prep":"Lisa Mason","cd":"05/07","d":-16,"t":[["na",null],["done","03/24/2026"],["done","03/24/2026"],["na",null],["na",null]]},{"o":"26-29453-KS","s":"KS","prep":"Denise Clarke","cd":"05/07","d":-16,"t":[["done","05/06/2026"],["done","05/05/2026"],["done","05/08/2026"],["na",null],["na",null]]},{"o":"26-29236-KS","s":"KS","prep":"Denise Clarke","cd":"05/07","d":-16,"t":[["done","05/05/2026"],["done","04/28/2026"],["done","05/05/2026"],["na",null],["na",null]]},{"o":"26-29066-CO","s":"CO","prep":"Christina McCann","cd":"05/07","d":-16,"t":[["na",null],["done","04/14/2026"],["done","04/14/2026"],["na",null],["na",null]]},{"o":"26-29061-CO","s":"CO","prep":"Christina McCann","cd":"05/08","d":-15,"t":[["na",null],["done","04/14/2026"],["done","04/14/2026"],["na",null],["na",null]]},{"o":"26-29258-CO","s":"CO","prep":"Christina McCann","cd":"05/11","d":-12,"t":[["na",null],["done","04/24/2026"],["done","04/24/2026"],["na",null],["na",null]]},{"o":"26-28940-CO","s":"CO","prep":"","cd":"05/12","d":-11,"t":[["na",null],["due","04/08/2026"],["blank",null],["na",null],["na",null]]},{"o":"26-29159-CO","s":"CO","prep":"Christina McCann","cd":"05/12","d":-11,"t":[["na",null],["done","04/15/2026"],["due","04/15/2026"],["na",null],["na",null]]},{"o":"26-29074-KS","s":"KS","prep":"Denise Clarke","cd":"05/12","d":-11,"t":[["done","04/13/2026"],["done","04/28/2026"],["done","04/28/2026"],["na",null],["na",null]]},{"o":"26-28905-KS","s":"KS","prep":"Denise Clarke","cd":"05/13","d":-10,"t":[["done","04/08/2026"],["done","04/16/2026"],["done","04/20/2026"],["na",null],["na",null]]},{"o":"26-29640-KS","s":"KS","prep":"Denise Clarke","cd":"05/14","d":-9,"t":[["done","05/05/2026"],["done","05/12/2026"],["done","05/12/2026"],["na",null],["na",null]]},{"o":"25-26525-MI","s":"MI","prep":"Christine Dutkiewicz","cd":"05/14","d":-9,"t":[["due","12/10/2025"],["done","04/22/2026"],["done","04/30/2026"],["na",null],["na",null]]},{"o":"26-29195-CO","s":"CO","prep":"Christina McCann","cd":"05/15","d":-8,"t":[["na",null],["na",null],["na",null],["na",null],["na",null]]},{"o":"26-29192-CO","s":"CO","prep":"Christina McCann","cd":"05/15","d":-8,"t":[["na",null],["na",null],["na",null],["na",null],["na",null]]},{"o":"26-29188-CO","s":"CO","prep":"Christina McCann","cd":"05/15","d":-8,"t":[["na",null],["na",null],["na",null],["na",null],["na",null]]},{"o":"26-29356-MI","s":"MI","prep":"Christine Dutkiewicz","cd":"05/15","d":-8,"t":[["done","04/27/2026"],["done","04/30/2026"],["done","05/04/2026"],["na",null],["na",null]]},{"o":"26-29187-CO","s":"CO","prep":"Christina McCann","cd":"05/15","d":-8,"t":[["na",null],["na",null],["na",null],["na",null],["na",null]]},{"o":"26-29194-CO","s":"CO","prep":"Christina McCann","cd":"05/15","d":-8,"t":[["na",null],["na",null],["na",null],["na",null],["na",null]]},{"o":"26-29183-CO","s":"CO","prep":"Roxie Dase","cd":"05/15","d":-8,"t":[["na",null],["na",null],["na",null],["na",null],["na",null]]},{"o":"26-29191-CO","s":"CO","prep":"Christina McCann","cd":"05/15","d":-8,"t":[["na",null],["na",null],["na",null],["na",null],["na",null]]},{"o":"26-29193-CO","s":"CO","prep":"Christina McCann","cd":"05/15","d":-8,"t":[["na",null],["na",null],["na",null],["na",null],["na",null]]},{"o":"26-29197-CO","s":"CO","prep":"Christina McCann","cd":"05/15","d":-8,"t":[["na",null],["na",null],["na",null],["na",null],["na",null]]},{"o":"26-29737-MI","s":"MI","prep":"Christine Dutkiewicz","cd":"05/15","d":-8,"t":[["due","05/07/2026"],["done","05/07/2026"],["done","05/08/2026"],["na",null],["na",null]]},{"o":"26-29230-KS","s":"KS","prep":"Denise Clarke","cd":"05/18","d":-5,"t":[["done","04/22/2026"],["done","05/01/2026"],["done","05/07/2026"],["na",null],["na",null]]},{"o":"26-29271-CO","s":"CO","prep":"Christina McCann","cd":"05/18","d":-5,"t":[["na",null],["done","04/24/2026"],["done","04/24/2026"],["na",null],["na",null]]},{"o":"26-29230-KS-A","s":"KS","prep":"Denise Clarke","cd":"05/18","d":-5,"t":[["done","04/30/2026"],["due","05/05/2026"],["blank",null],["na",null],["na",null]]},{"o":"26-29563-CO","s":"CO","prep":"Christina McCann","cd":"05/18","d":-5,"t":[["na",null],["done","05/05/2026"],["done","05/05/2026"],["na",null],["na",null]]},{"o":"26-29389-CO","s":"CO","prep":"Christina McCann","cd":"05/19","d":-4,"t":[["na",null],["done","04/29/2026"],["done","05/05/2026"],["na",null],["na",null]]},{"o":"26-29624-CO","s":"CO","prep":"Christina McCann","cd":"05/19","d":-4,"t":[["na",null],["done","05/06/2026"],["done","05/06/2026"],["na",null],["na",null]]},{"o":"26-29568-CO","s":"CO","prep":"Christina McCann","cd":"05/19","d":-4,"t":[["na",null],["done","05/07/2026"],["done","05/07/2026"],["na",null],["na",null]]},{"o":"26-29277-FL","s":"FL","prep":"Jenelee Coronel","cd":"05/19","d":-4,"t":[["na",null],["na",null],["na",null],["na",null],["na",null]]},{"o":"26-28993-CO","s":"CO","prep":"Christina McCann","cd":"05/19","d":-4,"t":[["na",null],["done","04/13/2026"],["done","04/13/2026"],["na",null],["na",null]]},{"o":"26-29365-FL","s":"FL","prep":"Jenelee Coronel","cd":"05/20","d":-3,"t":[["na",null],["done","05/03/2026"],["due","05/04/2026"],["due","04/27/2026"],["due","04/27/2026"]]},{"o":"26-29135-CO","s":"CO","prep":"Christina McCann","cd":"05/20","d":-3,"t":[["na",null],["done","04/20/2026"],["done","04/20/2026"],["na",null],["na",null]]},{"o":"26-28880-MI","s":"MI","prep":"Christine Dutkiewicz","cd":"05/20","d":-3,"t":[["na",null],["na",null],["na",null],["done","05/20/2026"],["done","05/20/2026"]]},{"o":"26-29346-MI","s":"MI","prep":"Michelle Dobrauer","cd":"05/20","d":-3,"t":[["na",null],["done","05/08/2026"],["done","05/11/2026"],["done","05/18/2026"],["na",null]]},{"o":"26-27658-MI","s":"MI","prep":"Christine Dutkiewicz","cd":"05/20","d":-3,"t":[["na",null],["done","04/01/2026"],["done","04/01/2026"],["na",null],["na",null]]},{"o":"26-29170-CO","s":"CO","prep":"Christina McCann","cd":"05/21","d":-2,"t":[["na",null],["done","04/20/2026"],["done","04/20/2026"],["na",null],["na",null]]},{"o":"25-26595-FL","s":"FL","prep":"Jenelee Coronel","cd":"05/21","d":-2,"t":[["na",null],["done","05/04/2026"],["done","05/14/2026"],["done","05/19/2026"],["done","05/19/2026"]]},{"o":"26-29682-FL","s":"FL","prep":"","cd":"05/21","d":-2,"t":[["na",null],["na",null],["na",null],["na",null],["na",null]]},{"o":"26-29518-MI","s":"MI","prep":"Lisa Mason","cd":"05/21","d":-2,"t":[["na",null],["done","05/07/2026"],["done","05/08/2026"],["na",null],["na",null]]},{"o":"26-28161-FL","s":"FL","prep":"Jenelee Coronel","cd":"05/21","d":-2,"t":[["na",null],["na",null],["na",null],["na",null],["na",null]]},{"o":"26-29771-KS","s":"KS","prep":"Mariah Alexis Ocker","cd":"05/21","d":-2,"t":[["due","05/08/2026"],["due","05/13/2026"],["blank",null],["na",null],["na",null]]},{"o":"26-29314-CO","s":"CO","prep":"Christina McCann","cd":"05/21","d":-2,"t":[["na",null],["done","04/29/2026"],["done","05/04/2026"],["na",null],["na",null]]},{"o":"26-29237-MI","s":"MI","prep":"Christine Dutkiewicz","cd":"05/21","d":-2,"t":[["done","04/29/2026"],["done","04/29/2026"],["done","04/29/2026"],["na",null],["na",null]]},{"o":"26-29238-CO","s":"CO","prep":"Jim Newman","cd":"05/21","d":-2,"t":[["done","04/20/2026"],["due","04/23/2026"],["blank",null],["na",null],["na",null]]},{"o":"26-29733-MI","s":"MI","prep":"Michelle Dobrauer","cd":"05/21","d":-2,"t":[["na",null],["done","05/12/2026"],["done","05/12/2026"],["due","05/19/2026"],["na",null]]},{"o":"26-29788-MI","s":"MI","prep":"Michelle Dobrauer","cd":"05/21","d":-2,"t":[["na",null],["done","05/14/2026"],["done","05/18/2026"],["due","05/21/2026"],["na",null]]},{"o":"26-28830-MI","s":"MI","prep":"Michael Brombach","cd":"05/22","d":-1,"t":[["due","03/31/2026"],["done","03/31/2026"],["done","03/31/2026"],["na",null],["na",null]]},{"o":"26-29272-FL","s":"FL","prep":"","cd":"05/22","d":-1,"t":[["na",null],["done","04/30/2026"],["done","05/21/2026"],["due","04/22/2026"],["due","04/22/2026"]]},{"o":"26-29847-CO","s":"CO","prep":"Christina McCann","cd":"05/22","d":-1,"t":[["na",null],["done","05/19/2026"],["done","05/19/2026"],["na",null],["na",null]]},{"o":"26-29602-MI","s":"MI","prep":"Michelle Dobrauer","cd":"05/22","d":-1,"t":[["na",null],["done","05/08/2026"],["done","05/08/2026"],["na",null],["na",null]]},{"o":"26-28921-MI","s":"MI","prep":"Christine Dutkiewicz","cd":"05/22","d":-1,"t":[["due","04/02/2026"],["done","04/10/2026"],["done","04/14/2026"],["na",null],["na",null]]},{"o":"26-29430-CO","s":"CO","prep":"Jim Newman","cd":"05/22","d":-1,"t":[["done","04/29/2026"],["due","04/30/2026"],["blank",null],["na",null],["na",null]]},{"o":"26-27907-MI","s":"MI","prep":"Lisa Mason","cd":"05/22","d":-1,"t":[["na",null],["done","02/19/2026"],["done","02/19/2026"],["na",null],["na",null]]},{"o":"26-27578-NC","s":"NC","prep":"Anna Rosenthal","cd":"05/22","d":-1,"t":[["na",null],["due","02/09/2026"],["blank",null],["blank",null],["na",null]]},{"o":"26-29489-MI","s":"MI","prep":"Michelle Dobrauer","cd":"05/22","d":-1,"t":[["na",null],["done","05/03/2026"],["done","05/04/2026"],["na",null],["na",null]]},{"o":"26-28980-KS","s":"KS","prep":"Denise Clarke","cd":"05/22","d":-1,"t":[["done","04/06/2026"],["done","04/13/2026"],["done","04/13/2026"],["na",null],["na",null]]},{"o":"26-29712-MI-BC","s":"MI","prep":"Christine Dutkiewicz","cd":"05/22","d":-1,"t":[["done","05/15/2026"],["done","05/15/2026"],["done","05/20/2026"],["na",null],["na",null]]},{"o":"26-29632-MI","s":"MI","prep":"Michelle Dobrauer","cd":"05/22","d":-1,"t":[["na",null],["done","05/08/2026"],["done","05/08/2026"],["na",null],["na",null]]},{"o":"26-29086-MI","s":"MI","prep":"Lisa Mason","cd":"05/22","d":-1,"t":[["na",null],["done","05/08/2026"],["done","05/19/2026"],["na",null],["na",null]]},{"o":"26-29846-MI","s":"MI","prep":"Michelle Dobrauer","cd":"05/22","d":-1,"t":[["due","05/13/2026"],["done","05/18/2026"],["done","05/18/2026"],["na",null],["na",null]]},{"o":"26-29455-AZ","s":"AZ","prep":"Tammy Smith","cd":"05/22","d":-1,"t":[["done","04/27/2026"],["done","04/29/2026"],["done","04/29/2026"],["na",null],["na",null]]},{"o":"26-28660-CO","s":"CO","prep":"Christina McCann","cd":"05/22","d":-1,"t":[["na",null],["done","03/27/2026"],["done","03/27/2026"],["na",null],["na",null]]},{"o":"26-27898-MI","s":"MI","prep":"Christine Dutkiewicz","cd":"05/22","d":-1,"t":[["done","02/19/2026"],["done","03/06/2026"],["done","03/09/2026"],["na",null],["na",null]]},{"o":"26-29182-MI","s":"MI","prep":"Michael Brombach","cd":"05/22","d":-1,"t":[["na",null],["done","04/24/2026"],["done","04/24/2026"],["na",null],["na",null]]},{"o":"26-29550-AL","s":"AL","prep":"Meaghan Dubbs","cd":"05/22","d":-1,"t":[["na",null],["done","05/07/2026"],["done","05/07/2026"],["blank",null],["na",null]]},{"o":"26-29222-KS","s":"KS","prep":"Denise Clarke","cd":"05/22","d":-1,"t":[["na",null],["done","04/28/2026"],["done","04/28/2026"],["blank",null],["na",null]]},{"o":"26-28593-KS","s":"KS","prep":"Denise Clarke","cd":"05/22","d":-1,"t":[["done","03/18/2026"],["done","04/06/2026"],["done","04/06/2026"],["na",null],["na",null]]},{"o":"26-29347-MI","s":"MI","prep":"Christine Dutkiewicz","cd":"05/22","d":-1,"t":[["na",null],["na",null],["na",null],["na",null],["na",null]]},{"o":"26-29125-KS","s":"KS","prep":"Denise Clarke","cd":"05/22","d":-1,"t":[["done","04/14/2026"],["done","04/28/2026"],["done","05/20/2026"],["na",null],["na",null]]},{"o":"26-29503-MI","s":"MI","prep":"Anna Rosenthal","cd":"05/22","d":-1,"t":[["na",null],["done","04/28/2026"],["done","05/05/2026"],["blank",null],["na",null]]},{"o":"26-28927-CO","s":"CO","prep":"Jim Newman","cd":"05/22","d":-1,"t":[["due","04/03/2026"],["due","04/08/2026"],["blank",null],["na",null],["na",null]]},{"o":"26-29252-MI","s":"MI","prep":"Michael Brombach","cd":"05/22","d":-1,"t":[["na",null],["done","04/20/2026"],["done","04/21/2026"],["na",null],["na",null]]},{"o":"26-28110-MI","s":"MI","prep":"Michelle Dobrauer","cd":"05/22","d":-1,"t":[["due","03/02/2026"],["done","03/24/2026"],["done","03/25/2026"],["na",null],["na",null]]},{"o":"26-29838-CO","s":"CO","prep":"Jim Newman","cd":"05/22","d":-1,"t":[["done","05/13/2026"],["due","05/15/2026"],["blank",null],["na",null],["na",null]]},{"o":"26-28214-MI-BC","s":"MI","prep":"Christine Dutkiewicz","cd":"05/22","d":-1,"t":[["due","03/04/2026"],["done","05/20/2026"],["done","05/20/2026"],["na",null],["na",null]]},{"o":"26-29232-FL","s":"FL","prep":"Jenelee Coronel","cd":"05/22","d":-1,"t":[["na",null],["na",null],["na",null],["na",null],["na",null]]},{"o":"26-28811-MI","s":"MI","prep":"Michelle Dobrauer","cd":"05/22","d":-1,"t":[["due","03/30/2026"],["done","04/02/2026"],["done","04/02/2026"],["na",null],["na",null]]},{"o":"26-29609-MI","s":"MI","prep":"Christine Dutkiewicz","cd":"05/22","d":-1,"t":[["na",null],["done","05/08/2026"],["done","05/08/2026"],["na",null],["na",null]]},{"o":"26-29361-FL","s":"FL","prep":"Jenelee Coronel","cd":"05/22","d":-1,"t":[["na",null],["done","04/27/2026"],["done","04/30/2026"],["due","04/24/2026"],["due","04/24/2026"]]},{"o":"26-29546-FL","s":"FL","prep":"Jenelee Coronel","cd":"05/22","d":-1,"t":[["na",null],["done","05/04/2026"],["done","05/06/2026"],["due","05/18/2026"],["due","05/18/2026"]]},{"o":"26-29501-FL","s":"FL","prep":"Jenelee Coronel","cd":"05/23","d":0,"t":[["na",null],["na",null],["na",null],["na",null],["na",null]]},{"o":"26-29850-AL","s":"AL","prep":"Meaghan Dubbs","cd":"05/25","d":2,"t":[["na",null],["done","05/21/2026"],["done","05/21/2026"],["blank",null],["na",null]]},{"o":"26-29552-MI","s":"MI","prep":"Michelle Dobrauer","cd":"05/26","d":3,"t":[["na",null],["done","05/05/2026"],["done","05/06/2026"],["na",null],["na",null]]},{"o":"26-29106-KS","s":"KS","prep":"Denise Clarke","cd":"05/26","d":3,"t":[["done","04/17/2026"],["done","04/28/2026"],["due","04/28/2026"],["na",null],["na",null]]},{"o":"26-29515-KS","s":"KS","prep":"Mariah Alexis Ocker","cd":"05/26","d":3,"t":[["done","04/29/2026"],["done","05/07/2026"],["due","05/07/2026"],["na",null],["na",null]]},{"o":"26-29131-FL","s":"FL","prep":"Jenelee Coronel","cd":"05/26","d":3,"t":[["na",null],["done","04/17/2026"],["done","05/12/2026"],["due","05/19/2026"],["due","05/19/2026"]]},{"o":"26-29416-FL","s":"FL","prep":"Jenelee Coronel","cd":"05/26","d":3,"t":[["na",null],["done","05/14/2026"],["blank",null],["due","05/19/2026"],["due","05/19/2026"]]},{"o":"26-28987-CO","s":"CO","prep":"Jim Newman","cd":"05/26","d":3,"t":[["due","04/06/2026"],["done","04/14/2026"],["done","04/16/2026"],["na",null],["na",null]]},{"o":"26-29229-MI","s":"MI","prep":"Anna Rosenthal","cd":"05/26","d":3,"t":[["na",null],["done","04/20/2026"],["due","04/20/2026"],["blank",null],["na",null]]},{"o":"26-29330-FL","s":"FL","prep":"Jenelee Coronel","cd":"05/26","d":3,"t":[["na",null],["done","05/18/2026"],["done","05/19/2026"],["done","05/22/2026"],["done","05/22/2026"]]},{"o":"26-29708-MI","s":"MI","prep":"Michelle Dobrauer","cd":"05/26","d":3,"t":[["done","05/19/2026"],["done","05/11/2026"],["done","05/11/2026"],["na",null],["na",null]]},{"o":"26-29952-MI","s":"MI","prep":"Christine Dutkiewicz","cd":"05/26","d":3,"t":[["na",null],["done","05/19/2026"],["done","05/19/2026"],["due","05/21/2026"],["na",null]]},{"o":"26-29321-CO","s":"CO","prep":"Christina McCann","cd":"05/26","d":3,"t":[["na",null],["done","04/29/2026"],["done","05/04/2026"],["na",null],["na",null]]},{"o":"26-28801-MI","s":"MI","prep":"Michelle Dobrauer","cd":"05/26","d":3,"t":[["na",null],["done","04/09/2026"],["done","04/09/2026"],["na",null],["na",null]]},{"o":"26-29519-MI","s":"MI","prep":"Michelle Dobrauer","cd":"05/26","d":3,"t":[["na",null],["done","05/04/2026"],["done","05/05/2026"],["na",null],["na",null]]},{"o":"26-29129-FL","s":"FL","prep":"Jenelee Coronel","cd":"05/26","d":3,"t":[["na",null],["done","04/16/2026"],["done","05/03/2026"],["due","04/14/2026"],["due","04/14/2026"]]},{"o":"26-29506-CO","s":"CO","prep":"Christina McCann","cd":"05/26","d":3,"t":[["na",null],["done","05/05/2026"],["done","05/05/2026"],["na",null],["na",null]]},{"o":"26-29511-KS","s":"KS","prep":"Mariah Alexis Ocker","cd":"05/26","d":3,"t":[["done","04/29/2026"],["done","05/07/2026"],["due","05/07/2026"],["na",null],["na",null]]},{"o":"26-29360-CO","s":"CO","prep":"Christina McCann","cd":"05/26","d":3,"t":[["na",null],["done","05/01/2026"],["due","05/01/2026"],["na",null],["na",null]]},{"o":"26-28493-FL","s":"FL","prep":"Jenelee Coronel","cd":"05/26","d":3,"t":[["na",null],["na",null],["na",null],["na",null],["na",null]]},{"o":"26-27453-MI","s":"MI","prep":"Lisa Mason","cd":"05/26","d":3,"t":[["done","04/20/2026"],["done","04/16/2026"],["done","04/16/2026"],["na",null],["na",null]]},{"o":"26-29490-CO","s":"CO","prep":"Christina McCann","cd":"05/26","d":3,"t":[["na",null],["done","05/01/2026"],["done","05/04/2026"],["na",null],["na",null]]},{"o":"25-26781-MI","s":"MI","prep":"Michael Brombach","cd":"05/26","d":3,"t":[["na",null],["done","02/26/2026"],["done","03/30/2026"],["na",null],["na",null]]},{"o":"26-29542-MI","s":"MI","prep":"Christine Dutkiewicz","cd":"05/27","d":4,"t":[["na",null],["done","05/04/2026"],["done","05/07/2026"],["na",null],["na",null]]},{"o":"26-29517-MI","s":"MI","prep":"Michael Brombach","cd":"05/27","d":4,"t":[["na",null],["done","05/04/2026"],["done","05/08/2026"],["na",null],["na",null]]},{"o":"26-29320-MI","s":"MI","prep":"Michelle Dobrauer","cd":"05/27","d":4,"t":[["na",null],["done","04/30/2026"],["done","05/01/2026"],["na",null],["na",null]]},{"o":"26-29577-MI","s":"MI","prep":"Christine Dutkiewicz","cd":"05/27","d":4,"t":[["na",null],["done","05/07/2026"],["done","05/14/2026"],["done","05/22/2026"],["na",null]]},{"o":"26-29603-MI","s":"MI","prep":"Michelle Dobrauer","cd":"05/27","d":4,"t":[["na",null],["done","05/08/2026"],["done","05/08/2026"],["na",null],["na",null]]},{"o":"26-29703-CO","s":"CO","prep":"Christina McCann","cd":"05/27","d":4,"t":[["na",null],["done","05/08/2026"],["done","05/08/2026"],["na",null],["na",null]]},{"o":"26-28951-MI","s":"MI","prep":"Michael Brombach","cd":"05/27","d":4,"t":[["na",null],["done","04/15/2026"],["done","04/15/2026"],["na",null],["na",null]]},{"o":"26-29755-MI","s":"MI","prep":"Lisa Mason","cd":"05/27","d":4,"t":[["done","05/08/2026"],["done","05/12/2026"],["done","05/12/2026"],["na",null],["na",null]]},{"o":"26-29151-FL","s":"FL","prep":"Myra Greene","cd":"05/27","d":4,"t":[["na",null],["done","04/23/2026"],["done","05/11/2026"],["due","04/21/2026"],["due","04/21/2026"]]},{"o":"26-29707-MI","s":"MI","prep":"Michael Brombach","cd":"05/27","d":4,"t":[["na",null],["done","05/11/2026"],["done","05/13/2026"],["na",null],["na",null]]},{"o":"26-29396-CO","s":"CO","prep":"Christina McCann","cd":"05/27","d":4,"t":[["na",null],["done","04/29/2026"],["done","05/04/2026"],["na",null],["na",null]]},{"o":"26-29228-MI","s":"MI","prep":"Michelle Dobrauer","cd":"05/27","d":4,"t":[["na",null],["done","04/27/2026"],["done","04/28/2026"],["na",null],["na",null]]},{"o":"26-29593-MI","s":"MI","prep":"Michelle Dobrauer","cd":"05/27","d":4,"t":[["na",null],["done","05/08/2026"],["done","05/08/2026"],["due","05/26/2026"],["na",null]]},{"o":"26-29127-CO","s":"CO","prep":"Christina McCann","cd":"05/27","d":4,"t":[["na",null],["done","04/20/2026"],["done","04/20/2026"],["na",null],["na",null]]},{"o":"26-27361-MI","s":"MI","prep":"Michelle Dobrauer","cd":"05/27","d":4,"t":[["na",null],["done","01/27/2026"],["done","01/27/2026"],["na",null],["na",null]]},{"o":"26-28494-MI","s":"MI","prep":"Christine Dutkiewicz","cd":"05/27","d":4,"t":[["na",null],["done","03/16/2026"],["done","03/18/2026"],["due","05/22/2026"],["na",null]]},{"o":"26-29354-CO","s":"CO","prep":"Christina McCann","cd":"05/27","d":4,"t":[["na",null],["done","04/27/2026"],["done","04/27/2026"],["na",null],["na",null]]},{"o":"26-29260-MI","s":"MI","prep":"Michelle Dobrauer","cd":"05/28","d":5,"t":[["done","05/22/2026"],["done","05/22/2026"],["done","05/22/2026"],["na",null],["na",null]]},{"o":"26-29864-KS","s":"KS","prep":"Mariah Alexis Ocker","cd":"05/28","d":5,"t":[["done","05/14/2026"],["due","05/18/2026"],["blank",null],["na",null],["na",null]]},{"o":"26-29686-MI","s":"MI","prep":"Michelle Dobrauer","cd":"05/28","d":5,"t":[["na",null],["done","05/11/2026"],["done","05/12/2026"],["na",null],["na",null]]},{"o":"26-29298-CO","s":"CO","prep":"Christina McCann","cd":"05/28","d":5,"t":[["na",null],["done","04/24/2026"],["done","04/24/2026"],["na",null],["na",null]]},{"o":"26-28999-CO","s":"CO","prep":"Christina McCann","cd":"05/28","d":5,"t":[["na",null],["done","04/13/2026"],["done","04/13/2026"],["na",null],["na",null]]},{"o":"26-29180-MI","s":"MI","prep":"Christine Dutkiewicz","cd":"05/28","d":5,"t":[["due","04/16/2026"],["done","04/24/2026"],["done","04/27/2026"],["na",null],["na",null]]},{"o":"26-29753-MI","s":"MI","prep":"Lisa Mason","cd":"05/28","d":5,"t":[["na",null],["done","05/12/2026"],["done","05/12/2026"],["na",null],["na",null]]},{"o":"26-29548-FL","s":"FL","prep":"Jenelee Coronel","cd":"05/28","d":5,"t":[["na",null],["done","05/06/2026"],["done","05/21/2026"],["due","05/21/2026"],["due","05/21/2026"]]},{"o":"26-29888-AZ","s":"AZ","prep":"Tammy Smith","cd":"05/28","d":5,"t":[["done","05/14/2026"],["done","05/21/2026"],["done","05/21/2026"],["na",null],["na",null]]},{"o":"26-29754-MI","s":"MI","prep":"Michael Brombach","cd":"05/28","d":5,"t":[["na",null],["done","05/12/2026"],["done","05/15/2026"],["na",null],["na",null]]},{"o":"26-29797-MI","s":"MI","prep":"Christine Dutkiewicz","cd":"05/28","d":5,"t":[["done","05/20/2026"],["done","05/15/2026"],["done","05/18/2026"],["na",null],["na",null]]},{"o":"26-26963-AL","s":"AL","prep":"Meaghan Dubbs","cd":"05/28","d":5,"t":[["done","01/28/2026"],["done","01/16/2026"],["done","01/16/2026"],["na",null],["na",null]]},{"o":"26-29813-CO","s":"CO","prep":"","cd":"05/28","d":5,"t":[["na",null],["done","05/15/2026"],["done","05/15/2026"],["na",null],["na",null]]},{"o":"26-29784-CO","s":"CO","prep":"Jim Newman","cd":"05/28","d":5,"t":[["due","05/11/2026"],["done","05/19/2026"],["due","05/19/2026"],["na",null],["na",null]]},{"o":"25-26022-AZ","s":"AZ","prep":"","cd":"05/28","d":5,"t":[["done","04/15/2026"],["done","04/27/2026"],["done","04/27/2026"],["na",null],["na",null]]},{"o":"26-29810-CO","s":"CO","prep":"Jim Newman","cd":"05/29","d":6,"t":[["due","05/11/2026"],["done","05/21/2026"],["due","05/21/2026"],["na",null],["na",null]]},{"o":"26-29240-CO","s":"CO","prep":"Jim Newman","cd":"05/29","d":6,"t":[["na",null],["due","04/23/2026"],["blank",null],["na",null],["na",null]]},{"o":"26-28263-FL","s":"FL","prep":"Jenelee Coronel","cd":"05/29","d":6,"t":[["na",null],["done","04/02/2026"],["done","04/27/2026"],["due","05/26/2026"],["due","05/26/2026"]]},{"o":"25-26767-AL","s":"AL","prep":"Meaghan Dubbs","cd":"05/29","d":6,"t":[["na",null],["done","12/29/2025"],["done","12/30/2025"],["blank",null],["na",null]]},{"o":"26-28372-AL","s":"AL","prep":"Evan Kopczyk","cd":"05/29","d":6,"t":[["na",null],["na",null],["na",null],["na",null],["na",null]]},{"o":"25-25627-AL","s":"AL","prep":"Meaghan Dubbs","cd":"05/29","d":6,"t":[["na",null],["done","11/03/2025"],["done","11/04/2025"],["blank",null],["na",null]]},{"o":"26-29806-CO","s":"CO","prep":"Christina McCann","cd":"05/29","d":6,"t":[["na",null],["done","05/18/2026"],["done","05/18/2026"],["na",null],["na",null]]},{"o":"26-29241-CO","s":"CO","prep":"Christina McCann","cd":"05/29","d":6,"t":[["na",null],["done","04/23/2026"],["done","04/23/2026"],["na",null],["na",null]]},{"o":"26-29160-MI","s":"MI","prep":"Lisa Mason","cd":"05/29","d":6,"t":[["na",null],["done","04/23/2026"],["done","04/23/2026"],["na",null],["na",null]]},{"o":"26-29331-CO","s":"CO","prep":"Christina McCann","cd":"05/29","d":6,"t":[["na",null],["done","04/24/2026"],["done","04/27/2026"],["na",null],["na",null]]},{"o":"26-29633-CO","s":"CO","prep":"Christina McCann","cd":"05/29","d":6,"t":[["na",null],["done","05/08/2026"],["done","05/08/2026"],["na",null],["na",null]]},{"o":"26-29186-MI","s":"MI","prep":"Michael Brombach","cd":"05/29","d":6,"t":[["na",null],["done","04/24/2026"],["done","04/24/2026"],["na",null],["na",null]]},{"o":"26-29617-MI","s":"MI","prep":"Michelle Dobrauer","cd":"05/29","d":6,"t":[["na",null],["done","05/08/2026"],["done","05/08/2026"],["na",null],["na",null]]},{"o":"26-29798-FL","s":"FL","prep":"","cd":"05/29","d":6,"t":[["na",null],["na",null],["na",null],["na",null],["na",null]]},{"o":"26-29070-AL","s":"AL","prep":"Meaghan Dubbs","cd":"05/29","d":6,"t":[["due","04/10/2026"],["done","04/28/2026"],["done","04/28/2026"],["na",null],["na",null]]},{"o":"26-29576-KS","s":"KS","prep":"Denise Clarke","cd":"05/29","d":6,"t":[["done","05/04/2026"],["done","05/07/2026"],["due","05/07/2026"],["na",null],["na",null]]},{"o":"26-29128-FL","s":"FL","prep":"Jenelee Coronel","cd":"05/29","d":6,"t":[["na",null],["done","04/20/2026"],["done","05/20/2026"],["due","05/22/2026"],["due","05/22/2026"]]},{"o":"26-29957-CO","s":"CO","prep":"Jim Newman","cd":"05/29","d":6,"t":[["due","05/19/2026"],["due","05/22/2026"],["blank",null],["na",null],["na",null]]},{"o":"26-28639-CO","s":"CO","prep":"Christina McCann","cd":"05/29","d":6,"t":[["na",null],["done","03/25/2026"],["done","03/25/2026"],["na",null],["na",null]]},{"o":"26-28052-PA","s":"PA","prep":"Meaghan Dubbs","cd":"05/29","d":6,"t":[["na",null],["done","03/13/2026"],["due","03/13/2026"],["blank",null],["na",null]]},{"o":"26-28975-KS","s":"KS","prep":"Denise Clarke","cd":"05/29","d":6,"t":[["done","04/08/2026"],["done","04/13/2026"],["done","04/13/2026"],["na",null],["na",null]]},{"o":"26-29226-MI","s":"MI","prep":"Christine Dutkiewicz","cd":"05/29","d":6,"t":[["done","04/22/2026"],["done","04/27/2026"],["done","04/27/2026"],["na",null],["na",null]]},{"o":"26-28823-MI","s":"MI","prep":"Lisa Mason","cd":"05/29","d":6,"t":[["na",null],["done","03/31/2026"],["done","04/01/2026"],["na",null],["na",null]]},{"o":"26-29762-KS","s":"KS","prep":"Denise Clarke","cd":"05/29","d":6,"t":[["due","05/08/2026"],["done","05/18/2026"],["due","05/18/2026"],["na",null],["na",null]]},{"o":"26-29093-FL","s":"FL","prep":"Jenelee Coronel","cd":"05/29","d":6,"t":[["na",null],["done","04/20/2026"],["due","04/23/2026"],["due","04/22/2026"],["due","04/22/2026"]]},{"o":"26-28410-KS","s":"KS","prep":"Denise Clarke","cd":"05/29","d":6,"t":[["done","03/23/2026"],["done","03/20/2026"],["done","03/23/2026"],["na",null],["na",null]]},{"o":"26-28510-FL","s":"FL","prep":"Jenelee Coronel","cd":"05/29","d":6,"t":[["na",null],["done","05/13/2026"],["done","05/22/2026"],["due","05/07/2026"],["due","05/07/2026"]]},{"o":"26-29421-CO","s":"CO","prep":"Christina McCann","cd":"05/29","d":6,"t":[["na",null],["done","05/01/2026"],["done","05/11/2026"],["na",null],["na",null]]},{"o":"26-29171-FL","s":"FL","prep":"Jenelee Coronel","cd":"05/29","d":6,"t":[["na",null],["na",null],["na",null],["na",null],["na",null]]},{"o":"26-29554-CO","s":"CO","prep":"Christina McCann","cd":"05/29","d":6,"t":[["na",null],["na",null],["na",null],["na",null],["na",null]]},{"o":"26-26848-FL","s":"FL","prep":"Ashley Atkins Grogan","cd":"05/29","d":6,"t":[["na",null],["done","01/06/2026"],["done","03/10/2026"],["due","01/06/2026"],["due","01/06/2026"]]},{"o":"26-29042-FL","s":"FL","prep":"Jenelee Coronel","cd":"05/29","d":6,"t":[["na",null],["done","04/21/2026"],["done","05/12/2026"],["due","04/10/2026"],["due","04/10/2026"]]},{"o":"26-29764-CO","s":"CO","prep":"Christina McCann","cd":"05/29","d":6,"t":[["na",null],["done","05/14/2026"],["done","05/14/2026"],["na",null],["na",null]]}],"task_cols_preclose":["Schedule Closing Due Date","Balance Accounting Due Date","Send Out Final ALTA Due Date","Send Docs To Notary (If Applicable) Due Date"],"task_cols_proc":["Receipt in EMD Due Date","Complete Commitment Due Date","Send Out Commitment & Needs List Due Date","Schedule Buyer Signing Due Date","Schedule Seller Signing Due Date"],"totals":{"disb_orders":246,"disb_revenue":301776.25,"upc_orders":137,"upc_revenue":273815.96,"open_orders":447,"preclose_orders":176,"agencies":11}};
+
+/* ===== Helpers ===== */
+const fmtUSD = n => '$' + n.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+const fmtK = n => n >= 1000 ? '$' + (n/1000).toFixed(1) + 'K' : '$' + n.toFixed(0);
+const fmtInt = n => n.toLocaleString('en-US');
+
+/* ===== Open orders state table (with upcoming revenue blended) ===== */
+(() => {
+  // Map state -> upcoming revenue
+  const agencyToState = {
+    'Tampa, FL':'FL','Pueblo, CO':'CO','Kansas':'KS','Scottsdale, AZ':'AZ',
+    'Birmingham, AL - University Title Agency':'AL','Troy, MI - University Title Agency':'MI',
+    'Otero County Title':'CO','Advance Title Agency':'MI','University Title Agency':'MI',
+    'Apollo Title Agency':'MI','Trust Title Agency':'MI'
+  };
+  const upcByState = {};
+  DATA.upcoming.forEach(u => {
+    const st = agencyToState[u.agency];
+    if (!st) return;
+    upcByState[st] = (upcByState[st] || 0) + u.upcoming;
+  });
+  // Combine with open order counts (filter junk states)
+  const stateOpen = {};
+  DATA.open_by_state.forEach(s => {
+    if (s.s.length === 2) stateOpen[s.s] = s.c;
+  });
+  const allStates = new Set([...Object.keys(upcByState), ...Object.keys(stateOpen)]);
+  const rows = [...allStates].map(s => ({
+    s, c: stateOpen[s] || 0, v: upcByState[s] || 0
+  })).filter(r => r.v > 0 || r.c > 0)
+     .sort((a,b) => b.v - a.v);
+
+  const max = Math.max(...rows.map(r => r.v));
+  document.getElementById('stateTable').innerHTML = rows.map(r => `
+    <tr>
+      <td class="state-cell">${r.s}</td>
+      <td class="num">${r.c}</td>
+      <td class="num bar-cell">${fmtUSD(r.v)}<div class="bar" style="width:${(r.v/max*130)}px"></div></td>
+    </tr>
+  `).join('');
+})();
+
+/* ===== Transaction mix chips ===== */
+(() => {
+  const palette = {
+    'Purchase': '#0f4c81',
+    'Refinance': '#1D9E75',
+    'Pre/Search': '#BA7517',
+    'Other': '#888888'
+  };
+  const total = DATA.open_by_tx_group.reduce((a,b) => a+b.c, 0);
+  document.getElementById('txChips').innerHTML = DATA.open_by_tx_group.map(g => {
+    const pct = (g.c/total*100);
+    const c = palette[g.g] || '#888';
+    return `<div class="chip">
+      <div class="dot" style="background:${c}"></div>
+      <div class="name">${g.g}</div>
+      <div class="chip-bar"><div class="fill" style="background:${c};width:${pct}%"></div></div>
+      <div class="count">${g.c} · ${pct.toFixed(0)}%</div>
+    </div>`;
+  }).join('');
+})();
+
+/* ===== Closing pressure cells ===== */
+(() => {
+  const today = new Date(DATA.today);
+  const rows = DATA.preclose_rows;
+  let past = 0, thisWk = 0, nextWk = 0, later = 0;
+  rows.forEach(r => {
+    const d = r.d;
+    if (d < 0) past++;
+    else if (d <= 7) thisWk++;
+    else if (d <= 14) nextWk++;
+    else later++;
+  });
+  document.getElementById('pressureCells').innerHTML = `
+    <div class="p-cell alert"><div class="v">${past}</div><div class="l">Past due</div></div>
+    <div class="p-cell warn"><div class="v">${thisWk}</div><div class="l">This week</div></div>
+    <div class="p-cell ok"><div class="v">${nextWk}</div><div class="l">Next week</div></div>
+    <div class="p-cell ok"><div class="v">${later}</div><div class="l">15+ days</div></div>
+  `;
+})();
+
+/* ===== Top sources ===== */
+(() => {
+  const top = DATA.open_sources_top.slice(0, 9);
+  const singlesCount = DATA.open_sources_top.length > 9
+    ? DATA.open_sources_top.slice(9).reduce((a,b) => a+b.c, 0) : 0;
+  let html = top.map(s => `<div class="src"><span class="nm" title="${s.n}">${s.n}</span><span class="ct">${String(s.c).padStart(2,'0')}</span></div>`).join('');
+  if (singlesCount > 0) {
+    html += `<div class="src" style="border-top:1px solid var(--line);margin-top:6px;padding-top:14px"><span class="nm" style="color:var(--accent)">Others (singles)</span><span class="ct">${singlesCount}</span></div>`;
+  }
+  document.getElementById('sourcesList').innerHTML = html;
+})();
+
+/* ===== Staff load lists ===== */
+(() => {
+  // Count files per officer from preclose rows
+  const officers = {};
+  DATA.preclose_rows.forEach(r => {
+    const o = (r.officer || '').trim();
+    if (!o) { officers['— Unassigned'] = (officers['— Unassigned'] || 0) + 1; return; }
+    o.split(';').forEach(name => {
+      const n = name.trim();
+      if (n) officers[n] = (officers[n] || 0) + 1;
+    });
+  });
+  const officerList = Object.entries(officers).sort((a,b)=>b[1]-a[1]);
+  const totalO = DATA.preclose_rows.length;
+  document.getElementById('officersList').innerHTML = officerList.map(([n,c]) => {
+    const unasClass = n.startsWith('—') ? 'style="color:var(--red);font-style:italic"' : '';
+    return `<div class="person"><span class="nm" ${unasClass}>${n}</span><span class="ct">${c}<span class="of">/ ${totalO}</span></span></div>`;
+  }).join('');
+
+  // Pre-processors
+  const pps = {};
+  DATA.proc_rows.forEach(r => {
+    const o = (r.prep || '').trim();
+    if (!o) { pps['— Unassigned'] = (pps['— Unassigned'] || 0) + 1; return; }
+    o.split(';').forEach(name => {
+      const n = name.trim();
+      if (n) pps[n] = (pps[n] || 0) + 1;
+    });
+  });
+  const ppList = Object.entries(pps).sort((a,b)=>b[1]-a[1]);
+  const totalP = DATA.proc_rows.length;
+  document.getElementById('preprocList').innerHTML = ppList.map(([n,c]) => {
+    const unasClass = n.startsWith('—') ? 'style="color:var(--red);font-style:italic"' : '';
+    return `<div class="person"><span class="nm" ${unasClass}>${n}</span><span class="ct">${c}<span class="of">/ ${totalP}</span></span></div>`;
+  }).join('');
+})();
+
+/* ===== Revenue Chart — by agency, stacked ===== */
+(() => {
+  // Use top 8 agencies by combined revenue
+  const combined = {};
+  DATA.disbursed.forEach(d => combined[d.agency] = (combined[d.agency] || {realized:0, upcoming:0}));
+  DATA.disbursed.forEach(d => { if (!combined[d.agency]) combined[d.agency] = {realized:0, upcoming:0}; combined[d.agency].realized = d.total; });
+  DATA.upcoming.forEach(u => { if (!combined[u.agency]) combined[u.agency] = {realized:0, upcoming:0}; combined[u.agency].upcoming = u.upcoming; });
+
+  const items = Object.entries(combined).map(([a,v]) => ({a, ...v, total: v.realized+v.upcoming}))
+                .sort((a,b) => b.total - a.total);
+
+  const labels = items.map(i => {
+    // Shorten agency labels
+    return i.a.replace(' - University Title Agency','').replace('University Title Agency','UTA');
+  });
+
+  new Chart(document.getElementById('revenueChart'), {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [
+        {label:'Realized (MTD)', data: items.map(i => i.realized), backgroundColor:'#0f4c81', borderWidth:0, borderRadius:2},
+        {label:'Upcoming (pipeline)', data: items.map(i => i.upcoming), backgroundColor:'#5b8cb8', borderWidth:0, borderRadius:2},
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins:{
+        legend:{display:true, position:'bottom', labels:{color:'#666', font:{size:11, family:"'Inter Tight'"}, boxWidth:10, boxHeight:10, padding:14}},
+        tooltip:{backgroundColor:'#fff', borderColor:'#0f4c81', borderWidth:1, titleColor:'#0f4c81', bodyColor:'#1a1a1a', padding:10, cornerRadius:6, callbacks:{label:c=>` ${c.dataset.label}: $${c.parsed.y.toLocaleString()}`}}
+      },
+      scales:{
+        x:{stacked:true, ticks:{color:'#666', font:{size:10, family:"'Inter Tight'"}, autoSkip:false, maxRotation:35, minRotation:35}, grid:{display:false}, border:{color:'#ececec'}},
+        y:{stacked:true, ticks:{color:'#888', font:{size:10, family:"'JetBrains Mono'"}, callback:v=>'$'+(v/1000).toFixed(0)+'K'}, grid:{color:'#f0f0f0'}, border:{display:false}}
+      }
+    }
+  });
+})();
+
+/* ===== Pre-Closing Matrix ===== */
+const PC_TASKS = ['Schedule Closing','Balance Accounting','Send Final ALTA','Send Docs to Notary'];
+(() => {
+  const rows = DATA.preclose_rows.slice().sort((a,b) => a.d - b.d);
+
+  const pastCount = rows.filter(r => r.d < 0).length;
+  const dueCount = rows.filter(r => r.t.some(x => x[0] === 'due')).length;
+  const unasCount = rows.filter(r => !r.officer).length;
+  document.getElementById('pcPast').textContent = pastCount;
+  document.getElementById('pcDue').textContent = dueCount;
+  document.getElementById('pcUnas').textContent = unasCount;
+
+  // Aggregate completion bar
+  const aggHtml = PC_TASKS.map((name, i) => {
+    const total = rows.length;
+    const done = rows.filter(r => r.t[i][0] === 'done').length;
+    const na = rows.filter(r => r.t[i][0] === 'na').length;
+    const applicable = total - na;
+    const pct = applicable > 0 ? (done / applicable * 100) : 0;
+    return `<div class="agg-row">
+      <span class="agg-lbl">${name}</span>
+      <div class="agg-track"><div class="agg-fill" style="width:${pct}%;background:var(--green)"></div></div>
+      <span class="agg-val">${done}/${applicable} <span class="muted">· ${pct.toFixed(0)}%</span></span>
+    </div>`;
+  }).join('');
+  document.getElementById('pcAggBar').innerHTML = aggHtml;
+
+  const closeClass = d => d < 0 ? 'past' : d <= 7 ? 'soon' : 'ok';
+  const closeLabel = d => d < 0 ? Math.abs(d)+'d late' : d === 0 ? 'today' : '+'+d+'d';
+
+  const iconFor = status => status === 'done' ? '✓' : status === 'due' ? '•' : status === 'na' ? '—' : '·';
+
+  const matrix = document.getElementById('pcMatrix');
+  matrix.innerHTML = rows.map(r => {
+    const cells = r.t.map((t, i) => {
+      const cls = t[0];
+      const date = t[1] || '';
+      return `<div class="mx-cell ${cls}" data-task="${PC_TASKS[i]}" data-status="${cls}" data-date="${date}"><span class="icon">${iconFor(cls)}</span></div>`;
+    }).join('');
+    const officerDisplay = r.officer || '—';
+    const officerClass = r.officer ? 'mx-closer' : 'mx-closer unassigned';
+    const officerShort = officerDisplay.length > 14 ? officerDisplay.split(' ').map((p,i)=>i===0?p[0]+'.':p).join(' ') : officerDisplay;
+    return `<div class="matrix-row pc-row"
+      data-past="${r.d < 0}"
+      data-due="${r.t.some(x => x[0]==='due')}"
+      data-unassigned="${!r.officer}"
+      data-officer="${(r.officer||'').toLowerCase()}">
+      <div class="mx-ord"><span class="mx-st">${r.s}</span>${r.o}</div>
+      <div class="${officerClass}" title="${officerDisplay}">${officerShort}</div>
+      ${cells}
+      <div class="mx-close ${closeClass(r.d)}">${closeLabel(r.d)}</div>
+    </div>`;
+  }).join('');
+
+  // Tooltip
+  const tip = document.createElement('div');
+  tip.className = 'mx-tip';
+  document.body.appendChild(tip);
+  function attachTip(matrixEl) {
+    matrixEl.addEventListener('mouseover', e => {
+      const cell = e.target.closest('.mx-cell');
+      if (!cell) return;
+      const task = cell.dataset.task;
+      const status = cell.dataset.status;
+      const date = cell.dataset.date;
+      let body = '';
+      if (status === 'done') body = 'Completed ' + date;
+      else if (status === 'due') body = 'Due ' + date;
+      else if (status === 'na') body = 'Not applicable';
+      else body = 'Not set';
+      tip.innerHTML = `<b>${task}</b>${body}`;
+      tip.style.display = 'block';
+    });
+    matrixEl.addEventListener('mousemove', e => {
+      if (tip.style.display !== 'block') return;
+      tip.style.left = (e.clientX + 14) + 'px';
+      tip.style.top = (e.clientY + 14) + 'px';
+    });
+    matrixEl.addEventListener('mouseout', e => {
+      if (e.target.closest('.mx-cell')) tip.style.display = 'none';
+    });
+  }
+  attachTip(matrix);
+
+  // Filters
+  document.querySelectorAll('.filt[data-pc]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.filt[data-pc]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const f = btn.dataset.pc;
+      document.querySelectorAll('.matrix-row.pc-row').forEach(row => {
+        let show = true;
+        if (f === 'past') show = row.dataset.past === 'true';
+        else if (f === 'due') show = row.dataset.due === 'true';
+        else if (f === 'unassigned') show = row.dataset.unassigned === 'true';
+        else if (f === 'roxie') show = row.dataset.officer.includes('roxie');
+        else if (f === 'anna') show = row.dataset.officer.includes('anna');
+        else if (f === 'denise') show = row.dataset.officer.includes('denise');
+        else if (f === 'tammy') show = row.dataset.officer.includes('tammy krein');
+        row.classList.toggle('hidden', !show);
+      });
+    });
+  });
+
+  window._attachTip = attachTip;
+})();
+
+/* ===== Processor Matrix ===== */
+const PR_TASKS = ['Receipt in EMD','Complete Commitment','Send Commitment','Schedule Buyer Sign','Schedule Seller Sign'];
+(() => {
+  const rows = DATA.proc_rows.slice().sort((a,b) => a.d - b.d);
+
+  const pastCount = rows.filter(r => r.d < 0).length;
+  const dueCount = rows.filter(r => r.t.some(x => x[0] === 'due')).length;
+  const unasCount = rows.filter(r => !r.prep).length;
+  document.getElementById('prPast').textContent = pastCount;
+  document.getElementById('prDue').textContent = dueCount;
+  document.getElementById('prUnas').textContent = unasCount;
+
+  const aggHtml = PR_TASKS.map((name, i) => {
+    const total = rows.length;
+    const done = rows.filter(r => r.t[i][0] === 'done').length;
+    const na = rows.filter(r => r.t[i][0] === 'na').length;
+    const applicable = total - na;
+    const pct = applicable > 0 ? (done / applicable * 100) : 0;
+    return `<div class="agg-row">
+      <span class="agg-lbl">${name}</span>
+      <div class="agg-track"><div class="agg-fill" style="width:${pct}%;background:var(--green)"></div></div>
+      <span class="agg-val">${done}/${applicable} <span class="muted">· ${pct.toFixed(0)}%</span></span>
+    </div>`;
+  }).join('');
+  document.getElementById('prAggBar').innerHTML = aggHtml;
+
+  const closeClass = d => d < 0 ? 'past' : d <= 7 ? 'soon' : 'ok';
+  const closeLabel = d => d < 0 ? Math.abs(d)+'d late' : d === 0 ? 'today' : '+'+d+'d';
+  const iconFor = status => status === 'done' ? '✓' : status === 'due' ? '•' : status === 'na' ? '—' : '·';
+
+  const matrix = document.getElementById('prMatrix');
+  matrix.innerHTML = rows.map(r => {
+    const cells = r.t.map((t, i) => {
+      const cls = t[0];
+      const date = t[1] || '';
+      return `<div class="mx-cell ${cls}" data-task="${PR_TASKS[i]}" data-status="${cls}" data-date="${date}"><span class="icon">${iconFor(cls)}</span></div>`;
+    }).join('');
+    const prepDisplay = r.prep || '—';
+    const prepClass = r.prep ? 'mx-closer' : 'mx-closer unassigned';
+    const prepShort = prepDisplay.length > 14 ? prepDisplay.split(' ').map((p,i)=>i===0?p[0]+'.':p).join(' ') : prepDisplay;
+    return `<div class="matrix-row pr-row"
+      data-past="${r.d < 0}"
+      data-due="${r.t.some(x => x[0]==='due')}"
+      data-unassigned="${!r.prep}"
+      data-prep="${(r.prep||'').toLowerCase()}">
+      <div class="mx-ord"><span class="mx-st">${r.s}</span>${r.o}</div>
+      <div class="${prepClass}" title="${prepDisplay}">${prepShort}</div>
+      ${cells}
+      <div class="mx-close ${closeClass(r.d)}">${closeLabel(r.d)}</div>
+    </div>`;
+  }).join('');
+
+  window._attachTip(matrix);
+
+  document.querySelectorAll('.filt[data-pr]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.filt[data-pr]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const f = btn.dataset.pr;
+      document.querySelectorAll('.matrix-row.pr-row').forEach(row => {
+        let show = true;
+        if (f === 'past') show = row.dataset.past === 'true';
+        else if (f === 'due') show = row.dataset.due === 'true';
+        else if (f === 'unassigned') show = row.dataset.unassigned === 'true';
+        else if (f === 'christina') show = row.dataset.prep.includes('christina');
+        else if (f === 'michelle') show = row.dataset.prep.includes('michelle');
+        else if (f === 'jenelee') show = row.dataset.prep.includes('jenelee');
+        else if (f === 'denise') show = row.dataset.prep.includes('denise');
+        row.classList.toggle('hidden', !show);
+      });
+    });
+  });
+})();
+
+/* ===== US Maps ===== */
+function renderChoropleth(opts) {
+  const mapEl = document.getElementById(opts.elId);
+  const tip = document.createElement('div');
+  tip.className = 'tip';
+  mapEl.appendChild(tip);
+
+  const values = opts.values;
+  const svg = d3.select('#' + opts.elId).append('svg')
+    .attr('viewBox', '0 0 900 500')
+    .attr('width', '100%')
+    .attr('height', '100%');
+
+  const colorScale = d3.scaleThreshold()
+    .domain(opts.domain)
+    .range(opts.range);
+
+  const path = d3.geoPath(d3.geoAlbersUsa().scale(1050).translate([450, 250]));
+
+  d3.json('https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json').then(us => {
+    const states = topojson.feature(us, us.objects.states).features;
+    svg.append('g')
+      .selectAll('path')
+      .data(states)
+      .join('path')
+      .attr('d', path)
+      .attr('fill', d => colorScale(values[d.properties.name] || 0))
+      .attr('stroke', '#ffffff')
+      .attr('stroke-width', 0.8)
+      .style('cursor', 'pointer')
+      .on('mousemove', (e, d) => {
+        const v = values[d.properties.name] || 0;
+        const rect = mapEl.getBoundingClientRect();
+        const display = v > 0
+          ? '$' + v.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' ' + opts.suffix
+          : opts.noneLabel;
+        tip.innerHTML = `<strong>${d.properties.name}</strong>${display}`;
+        tip.style.left = (e.clientX - rect.left + 12) + 'px';
+        tip.style.top = (e.clientY - rect.top + 12) + 'px';
+        tip.style.opacity = 1;
+      })
+      .on('mouseout', () => tip.style.opacity = 0);
+
+    const labelStates = opts.labels || [];
+    if (labelStates.length) {
+      const abbr = opts.abbr || {};
+      svg.append('g')
+        .selectAll('text')
+        .data(states.filter(d => labelStates.includes(d.properties.name)))
+        .join('text')
+        .attr('transform', d => `translate(${path.centroid(d)})`)
+        .attr('text-anchor', 'middle')
+        .attr('font-family', 'Helvetica, Arial, sans-serif')
+        .attr('font-size', 10)
+        .attr('font-weight', 700)
+        .attr('fill', '#ffffff')
+        .attr('letter-spacing', 0.5)
+        .text(d => abbr[d.properties.name] || '');
+    }
+  });
+}
+
+/* Realized — blue */
+renderChoropleth({
+  elId: 'mapRealized',
+  values: {
+    'Michigan': 154651.21,
+    'Florida': 82245.99,
+    'Colorado': 36152.85,
+    'Arizona': 11838.28,
+    'Alabama': 8862.92,
+    'Kansas': 8025.00,
+  },
+  domain: [1, 12000, 36000, 82000, 150000],
+  range: ['#f4f4f2', '#E6EEF7', '#B5CCE3', '#7FA9CD', '#3D75AB', '#0f4c81'],
+  suffix: 'realized',
+  noneLabel: 'No realized revenue MTD',
+  labels: ['Michigan','Florida','Colorado'],
+  abbr: {'Michigan':'MI','Florida':'FL','Colorado':'CO'}
+});
+
+/* Upcoming — green */
+renderChoropleth({
+  elId: 'mapUpcoming',
+  values: {
+    'Michigan': 100768.74,
+    'Florida': 74576.40,
+    'Colorado': 62947.09,
+    'Kansas': 18013.31,
+    'Arizona': 10083.26,
+    'Alabama': 7427.16,
+  },
+  domain: [1, 10000, 30000, 60000, 95000],
+  range: ['#f4f4f2', '#EAF3DE', '#C0DD97', '#97C459', '#3B6D11', '#173404'],
+  suffix: 'upcoming',
+  noneLabel: 'No upcoming revenue',
+  labels: ['Michigan','Florida','Colorado'],
+  abbr: {'Michigan':'MI','Florida':'FL','Colorado':'CO'}
+});
+</script>
+
+</body>
+</html>
